@@ -3,6 +3,7 @@
 //
 
 #pragma once
+#include <string>
 
 
 // CZWOViewFinderDlg dialog
@@ -31,7 +32,11 @@ protected:
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
 	afx_msg void StartPreview();
+	afx_msg void ScanConnectedCameras();
 	char* cam_name = nullptr;
 	int binning = 1;
 	DECLARE_MESSAGE_MAP()
+	
+public:
+	afx_msg void OnBnClickedButtonRescan();
 };

@@ -78,6 +78,7 @@ BEGIN_MESSAGE_MAP(CZWOViewFinderDlg, CDialogEx)
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
+	ON_BN_CLICKED(IDC_BUTTON_RESCAN, &CZWOViewFinderDlg::OnBnClickedButtonRescan)
 END_MESSAGE_MAP()
 
 
@@ -114,12 +115,21 @@ BOOL CZWOViewFinderDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// Set small icon
 
 	// TODO: Add extra initialization here
-	//int nNumOfConnectedCameras = ASIGetNumOfConnectedCameras();
 
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
 
 
+void CZWOViewFinderDlg::ScanConnectedCameras()
+{
+	int nNumOfConnectedCameras = ASIGetNumOfConnectedCameras();
+	for (int i = 0;i < nNumOfConnectedCameras;i++)
+	{
+		ASI_CAMERA_INFO info;
+		ASIGetCameraProperty(&info, i);
+	}
+
+}
 
 void CZWOViewFinderDlg::StartPreview()
 {
@@ -381,3 +391,9 @@ HCURSOR CZWOViewFinderDlg::OnQueryDragIcon()
 //		warn("Failed to set thread name (\"%s\")", name);
 //	}
 //}
+
+
+void CZWOViewFinderDlg::OnBnClickedButtonRescan()
+{
+	// TODO: Add your control notification handler code here
+}
