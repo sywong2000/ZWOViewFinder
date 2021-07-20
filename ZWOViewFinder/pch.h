@@ -9,5 +9,5 @@
 
 // add headers that you want to pre-compile here
 #include "framework.h"
-
+#define WM_MY_MSG  10001
 #endif //PCH_H

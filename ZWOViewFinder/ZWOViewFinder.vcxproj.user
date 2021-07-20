@@ -3,4 +3,9 @@
   <PropertyGroup>
     <RESOURCE_FILE>ZWOViewFinder.rc</RESOURCE_FILE>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LocalDebuggerEnvironment>PATH=%PATH%;D:\ASI SDK\lib\x64;C:\opencv\build\x64\vc15\bin;
+$(LocalDebuggerEnvironment)</LocalDebuggerEnvironment>
+    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
+  </PropertyGroup>
 </Project>

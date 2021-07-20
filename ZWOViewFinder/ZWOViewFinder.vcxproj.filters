@@ -36,27 +36,6 @@
     <ClInclude Include="include\ASICamera2.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\agc.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\camera.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\disk.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\Frame.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\preview.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="strcasestr.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="strncasecmp.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ZWOViewFinder.cpp">
@@ -66,24 +45,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="pch.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="agc.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="camera.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Frame.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="preview.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="strcasestr.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="strncasecmp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
