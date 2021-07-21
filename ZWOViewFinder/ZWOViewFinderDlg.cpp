@@ -86,14 +86,13 @@ BEGIN_MESSAGE_MAP(CZWOViewFinderDlg, CDialogEx)
 	ON_WM_PAINT()
 	ON_WM_HSCROLL()
 	ON_WM_QUERYDRAGICON()
-	ON_BN_CLICKED(IDC_BUTTON_RESCAN, &CZWOViewFinderDlg::OnBnClickedButtonRescan)
 	ON_BN_CLICKED(IDC_BUTTON_START, &CZWOViewFinderDlg::OnBnClickedButtonStart)
 	ON_BN_CLICKED(IDC_BUTTON_OPEN, &CZWOViewFinderDlg::OnBnClickedButtonOpen)
 	ON_BN_CLICKED(IDC_BUTTON_STOP, &CZWOViewFinderDlg::OnBnClickedButtonStop)
 	ON_MESSAGE(WM_MY_MSG, OnUpdateData)
 	ON_WM_CLOSE()
 	ON_WM_SIZE()
-	ON_WM_LBUTTONDOWN()
+	ON_BN_CLICKED(IDC_BUTTON_SCAN, &CZWOViewFinderDlg::OnBnClickedButtonScan)
 END_MESSAGE_MAP()
 
 
@@ -131,6 +130,23 @@ BOOL CZWOViewFinderDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// Set small icon
 
 	// TODO: Add extra initialization here
+	CRect rect;
+
+	if (GetDlgItem(IDC_STATIC_DRAW) != NULL)
+	{
+		GetDlgItem(IDC_STATIC_DRAW)->GetWindowRect(rect);
+		iFullImageWidth = rect.Width();
+		iFullImageHeight = rect.Height();
+	}
+
+	if (GetDlgItem(IDC_STATIC_ROI) != NULL)
+	{
+		GetDlgItem(IDC_STATIC_ROI)->GetWindowRect(rect);
+		iROIImageWidth = rect.Width();
+		iROIImageHeight = rect.Height();
+	}
+
+	ROIRect = CRect(10, 10, 10 + ROIWidth, 10 + ROIHeight);
 
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
@@ -441,53 +457,6 @@ void CZWOViewFinderDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBa
 	CDialog::OnHScroll(nSBCode, nPos, pScrollBar);
 }
 
-void CZWOViewFinderDlg::OnBnClickedButtonRescan()
-{
-	// TODO: Add your control notification handler code here
-	iCamNum = ASIGetNumOfConnectedCameras();
-
-	((CComboBox*)GetDlgItem(IDC_COMBO_CAMERAS))->ResetContent();
-
-	int iSelectedIndex = -1, i;
-
-	ASI_CAMERA_INFO CamInfoTemp;
-	bool bDevOpened[ASICAMERA_ID_MAX] = { false };
-
-	char buf[64];
-	for (i = 0; i < iCamNum; i++)
-	{
-		ASIGetCameraProperty(&CamInfoTemp, i);
-
-		if (iSelectedID == CamInfoTemp.CameraID)
-			iSelectedIndex = i;
-		if (ASIGetNumOfControls(CamInfoTemp.CameraID, &ConnectCamera[CamInfoTemp.CameraID].iCtrlNum) != ASI_ERROR_CAMERA_CLOSED)//the camera maybe have be closed, say be unplugged and plugged
-			bDevOpened[CamInfoTemp.CameraID] = true;
-		if (bDevOpened[CamInfoTemp.CameraID])
-			sprintf_s(buf, "%s(ID %d opened)", CamInfoTemp.Name, CamInfoTemp.CameraID);
-		else
-			sprintf_s(buf, "%s(ID %d closed)", CamInfoTemp.Name, CamInfoTemp.CameraID);
-		((CComboBox*)GetDlgItem(IDC_COMBO_CAMERAS))->AddString(CA2CT(buf));
-
-	}
-	for (i = 0; i < ASICAMERA_ID_MAX; i++)
-	{
-		if (!bDevOpened[i])
-			CloseCam(i);
-	}
-	if (iSelectedIndex == -1)//
-	{
-		if (iCamNum > 0)
-			iSelectedIndex = 0;
-		else
-			iSelectedIndex = -1;
-		iSelectedID = -1;
-
-	}
-
-	((CComboBox*)GetDlgItem(IDC_COMBO_CAMERAS))->SetCurSel(iSelectedIndex);
-	OnCbnSelchangeComboCameras();
-
-}
 
 void CZWOViewFinderDlg::CloseCam(int iID)
 {
@@ -681,8 +650,6 @@ void Display(LPVOID params)
 	char name_roi[64];
 
 	int nCurrentFullImageWidth = -1, nCurrentFullImageHeight = -1, nCurrentROIImageWidth = -1, nCurrentROIImageHeight = -1;
-	float nScale = 0.0;
-
 
 	if (dlg->ConnectCamera[iCamIDInThread].Status == dlg->snaping)
 		sprintf_s(name, "snap");
@@ -695,14 +662,14 @@ void Display(LPVOID params)
 	sprintf_s(temp, " ID%d", iCamIDInThread);
 	strcat_s(name, temp);
 
-	cvNamedWindow(name, 1);
+	cvNamedWindow(name);
 	HWND hWnd = (HWND)cvGetWindowHandle(name);
 	HWND hParent = GetParent(hWnd);
 	::SetParent(hWnd, dlg->GetDlgItem(IDC_STATIC_DRAW)->m_hWnd);
 	::ShowWindow(hParent, SW_HIDE);
 
 
-	cvNamedWindow(name_roi, 1);
+	cvNamedWindow(name_roi);
 	HWND hWnd_roi = (HWND)cvGetWindowHandle(name_roi);
 	HWND hParent_roi = GetParent(hWnd_roi);
 	::SetParent(hWnd_roi, dlg->GetDlgItem(IDC_STATIC_ROI)->m_hWnd);
@@ -712,37 +679,18 @@ void Display(LPVOID params)
 	dlgindex.pDlg = dlg;
 	dlgindex.ID = iCamIDInThread;
 
-	//cvSetMouseCallback(name, onMouse, (void*)&dlgindex);
+	cvSetMouseCallback(name, onMouse, (void*)&dlgindex);
+
 
 	//	RECT rectCenter;
 	int x, y, centerX, centerY;
 	centerX = dlg->ConnectCamera[iCamIDInThread].width / 2;
 	centerY = dlg->ConnectCamera[iCamIDInThread].height / 2;
 	CvPoint cvPt0, cvPt1;
-	
+	CString str;
+
 	while (dlg->ConnectCamera[iCamIDInThread].Status == dlg->snaping || dlg->ConnectCamera[iCamIDInThread].Status == dlg->capturing)
 	{
-
-		if (dlg->ConnectCamera[iCamIDInThread].bNewImg)
-		{
-			//if (iCamIDInThread == dlg->iSelectedID && dlg->bDrawRect)
-			//{
-			//	cvPt0 = cvPoint(dlg->pt0.x, dlg->pt0.y);
-			//	cvPt1 = cvPoint(dlg->pt1.x, dlg->pt0.y);
-			//	CvScalar color = cvScalar((double)255.0, (double)255.0, (double)0.0, (double)0.0);
-			//	cvLine(dlg->ConnectCamera[iCamIDInThread].pTempImg, cvPt0, cvPt1, color, 1);
-			//	cvPt0 = cvPoint(dlg->pt1.x, dlg->pt0.y);
-			//	cvPt1 = cvPoint(dlg->pt1.x, dlg->pt1.y);
-			//	cvLine(dlg->ConnectCamera[iCamIDInThread].pTempImg, cvPt0, cvPt1, color, 1);
-			//	cvPt0 = cvPoint(dlg->pt1.x, dlg->pt1.y);
-			//	cvPt1 = cvPoint(dlg->pt0.x, dlg->pt1.y);
-			//	cvLine(dlg->ConnectCamera[iCamIDInThread].pTempImg, cvPt0, cvPt1, color, 1);
-			//	cvPt0 = cvPoint(dlg->pt0.x, dlg->pt0.y);
-			//	cvPt1 = cvPoint(dlg->pt0.x, dlg->pt1.y);
-			//	cvLine(dlg->ConnectCamera[iCamIDInThread].pTempImg, cvPt0, cvPt1, color, 1);
-			//}
-		}
-
 		if (!dlg->ConnectCamera[iCamIDInThread].pTempImgScaled || dlg->ConnectCamera[iCamIDInThread].bNewImg)
 		{
 			dlg->ConnectCamera[iCamIDInThread].bNewImg = false;
@@ -751,33 +699,43 @@ void Display(LPVOID params)
 			//HeightScaled = dlg->ConnectCamera[iCamIDInThread].height * dlg->fScale;
 			//dlg->ConnectCamera[iCamIDInThread].fOldScale = dlg->fScale;
 
-			
+
 			//cv::Mat img_raw(Frame::HEIGHT, Frame::WIDTH, CV_8UC1, (void*)(frame->frame_buffer_));
 			//cvtColor(img_raw, img_preview, cv::COLOR_BayerBG2BGR);
 
 			if (dlg->ROIRect == NULL)
 			{
-				dlg->ROIRect = CRect(10, 10, 10+dlg->ROIWidth, 10 + dlg->ROIHeight);
+				dlg->ROIRect = CRect(10, 10, 10 + dlg->ROIWidth, 10 + dlg->ROIHeight);
 			}
 
-			if (dlg->iFullImageHeight!=nCurrentFullImageHeight || dlg->iFullImageWidth != nCurrentFullImageWidth)
-			{ 
+			if (dlg->iFullImageHeight != nCurrentFullImageHeight || dlg->iFullImageWidth != nCurrentFullImageWidth)
+			{
 				// size changed, create a new image again
+
+				nCurrentFullImageWidth = dlg->iFullImageWidth;
+				dlg->fScale = ((double)nCurrentFullImageWidth) / ((double)dlg->ConnectCamera[iCamIDInThread].pTempImg->width);
+				int h = (int)(((double)dlg->ConnectCamera[iCamIDInThread].pTempImg->height) * dlg->fScale);
+				dlg->iFullImageHeight = h;
+				nCurrentFullImageHeight = h;
+				CRect rect;
+				dlg->GetDlgItem(IDC_STATIC_DRAW)->GetWindowRect(rect);
+				dlg->GetDlgItem(IDC_STATIC_DRAW)->SetWindowPos(NULL, 0, 0, rect.Width(), h, SWP_NOMOVE | SWP_NOZORDER);
+
 				cvReleaseImage(&dlg->ConnectCamera[iCamIDInThread].pTempImgScaled);
 				dlg->ConnectCamera[iCamIDInThread].pTempImgScaled = cvCreateImage(cvSize(dlg->iFullImageWidth, dlg->iFullImageHeight), dlg->ConnectCamera[iCamIDInThread].pTempImg->depth, dlg->ConnectCamera[iCamIDInThread].pTempImg->nChannels);
-				nCurrentFullImageHeight = dlg->iFullImageHeight;
-				nCurrentFullImageWidth = dlg->iFullImageWidth;
-				nScale = (float)nCurrentFullImageHeight / (float)dlg->ConnectCamera[iCamIDInThread].pTempImg->width;
-				
+				str.Format(L"Scale=%f, Image Width=%d, Actual Width=%d\r\n", dlg->fScale, nCurrentFullImageWidth, dlg->ConnectCamera[iCamIDInThread].pTempImg->width);
+				OutputDebugString(str);
+				// need to maintain the aspect ratio
 			}
 			cvResize(dlg->ConnectCamera[iCamIDInThread].pTempImg, dlg->ConnectCamera[iCamIDInThread].pTempImgScaled, CV_INTER_AREA);
 
 			// draw the ROI rectangle
-			cvRectangle(dlg->ConnectCamera[iCamIDInThread].pTempImgScaled, cvPoint(dlg->ROIRect.TopLeft().x * nScale, dlg->ROIRect.TopLeft().y * nScale), cvPoint(dlg->ROIRect.BottomRight().x * nScale, dlg->ROIRect.BottomRight().y * nScale), cvScalar(0, 255, 0, 0), 2);
+			cvRectangle(dlg->ConnectCamera[iCamIDInThread].pTempImgScaled, cvPoint(dlg->ROIRect.TopLeft().x * dlg->fScale, dlg->ROIRect.TopLeft().y * dlg->fScale), cvPoint(dlg->ROIRect.BottomRight().x * dlg->fScale, dlg->ROIRect.BottomRight().y * dlg->fScale), cvScalar(255, 255, 255, 0), 2);
 			cvShowImage(name, dlg->ConnectCamera[iCamIDInThread].pTempImgScaled);
-			
-			cvSetImageROI(dlg->ConnectCamera[iCamIDInThread].pTempImg, cvRect(dlg->ROIRect.TopLeft().x, dlg->ROIRect.TopLeft().y, dlg->ROIRect.Width(), dlg->ROIRect.Height()));
 
+			str.Format(L"X=%d, Y=%d, width=%d, height=%d", dlg->ROIRect.TopLeft().x, dlg->ROIRect.TopLeft().y, dlg->ROIRect.Width(), dlg->ROIRect.Height());
+			((CStatic*)dlg->GetDlgItem(IDC_STATIC_ROI_COORD))->SetWindowTextW(str);
+			cvSetImageROI(dlg->ConnectCamera[iCamIDInThread].pTempImg, cvRect(dlg->ROIRect.TopLeft().x, dlg->ROIRect.TopLeft().y, dlg->ROIRect.Width(), dlg->ROIRect.Height()));
 			if (dlg->iROIImageHeight != nCurrentROIImageHeight || dlg->iROIImageWidth != nCurrentROIImageWidth)
 			{
 				// size changed, create a new image again
@@ -786,9 +744,11 @@ void Display(LPVOID params)
 				nCurrentROIImageHeight = dlg->iROIImageHeight;
 				nCurrentROIImageWidth = dlg->iROIImageWidth;
 			}
-			cvResize(dlg->ConnectCamera[iCamIDInThread].pTempImg, dlg->ConnectCamera[iCamIDInThread].pROIImg, CV_INTER_AREA);
+			cvResize(dlg->ConnectCamera[iCamIDInThread].pTempImg, dlg->ConnectCamera[iCamIDInThread].pROIImg, CV_INTER_CUBIC);
 			cvShowImage(name_roi, dlg->ConnectCamera[iCamIDInThread].pROIImg);
 			cvResetImageROI(dlg->ConnectCamera[iCamIDInThread].pTempImg);
+
+
 
 			//cvSetImageROI(dlg->ConnectCamera[iCamIDInThread].pRgb, cvRect(0, 0, WidthScaled, HeightScaled));
 			//cvCopy(dlg->ConnectCamera[iCamIDInThread].pTempImgScaled, dlg->ConnectCamera[iCamIDInThread].pRgb);
@@ -859,12 +819,31 @@ void Display(LPVOID params)
 		//	cvText(dlg->ConnectCamera[iCamIDInThread].pRgb, buf, iTextX, iTextY);
 		//	cvShowImage(WindowName, dlg->ConnectCamera[iCamIDInThread].pRgb);
 		cvWaitKey(1);
+		// Left: 2424832 Up: 2490368 Right: 2555904 Down: 2621440
+		//switch (key)
+		//{
+		//case 2424832:
+		//	dlg->ROIRect.MoveToX(std::clamp((int)(dlg->ROIRect.TopLeft().x - 1),0,dlg->ConnectCamera[dlg->iSelectedID].pTempImg->width-dlg->ROIWidth));
+		//	break;
+		//case 2555904:
+		//	dlg->ROIRect.MoveToX(std::clamp((int)(dlg->ROIRect.TopLeft().x + 1), 0, dlg->ConnectCamera[dlg->iSelectedID].pTempImg->width - dlg->ROIWidth));
+		//	break;
+		//case 2490368:
+		//	dlg->ROIRect.MoveToY(std::clamp((int)(dlg->ROIRect.TopLeft().y - 1), 0, dlg->ConnectCamera[dlg->iSelectedID].pTempImg->height - dlg->ROIHeight));
+		//	break;
+		//case 2621440:
+		//	dlg->ROIRect.MoveToY(std::clamp((int)(dlg->ROIRect.TopLeft().y + 1), 0, dlg->ConnectCamera[dlg->iSelectedID].pTempImg->height - dlg->ROIHeight));
+		//	break;
+		//}
 	}
 	cvDestroyWindow(name);
 	cvDestroyWindow(name_roi);
 	_endthread();
 
 }
+
+
+
 void CaptureVideo(LPVOID params)
 {
 	CZWOViewFinderDlg* dlg = (CZWOViewFinderDlg*)params;
@@ -949,6 +928,29 @@ void onMouse(int Event, int x, int y, int flags, void* param)
 	Dlg_Thread* pDlgThread = (Dlg_Thread*)param;
 	CZWOViewFinderDlg* dlg;
 	dlg = pDlgThread->pDlg;
+
+	switch (Event)
+	{
+	case CV_EVENT_LBUTTONDOWN:
+		if (dlg->ConnectCamera[pDlgThread->ID].Status != dlg->closed)
+		{
+			//CPoint point;
+			//dlg->GetDlgItem(IDC_STATIC_DRAW)->ScreenToClient(&point);
+			CString str;
+			str.Format(L"At Point: %d, %d. (%d, %d) Scale=%f\r\n", x, y, (int)(x / dlg->fScale), int(y / dlg->fScale), dlg->fScale);
+			OutputDebugString(str);
+			if (dlg->ROIRect == NULL)
+			{
+				dlg->ROIRect = CRect(x / dlg->fScale, y / dlg->fScale, x / dlg->fScale + dlg->ROIWidth, y / dlg->fScale + dlg->ROIHeight);
+			}
+			else
+			{
+				dlg->ROIRect.MoveToXY(std::clamp((int)((x / dlg->fScale) - (dlg->ROIWidth / 2)), 0, dlg->ConnectCamera[dlg->iSelectedID].pTempImg->width - dlg->ROIWidth), std::clamp((int)((y / dlg->fScale) - (dlg->ROIHeight / 2)), 0, dlg->ConnectCamera[dlg->iSelectedID].pTempImg->height - dlg->ROIHeight));
+			}
+		}
+		break;
+	}
+
 	//switch (Event)
 	//{
 	//case CV_EVENT_LBUTTONDOWN:
@@ -1077,7 +1079,7 @@ void CZWOViewFinderDlg::OnBnClickedButtonOpen()
 	else
 		MessageBox(L"reopen or open fail");
 
-	OnBnClickedButtonRescan();
+	OnBnClickedButtonScan();
 
 
 }
@@ -1126,18 +1128,51 @@ void CZWOViewFinderDlg::OnSize(UINT nType, int cx, int cy)
 }
 
 
-void CZWOViewFinderDlg::OnLButtonDown(UINT nFlags, CPoint point)
+
+
+void CZWOViewFinderDlg::OnBnClickedButtonScan()
 {
-	// TODO: Add your message handler code here and/or call default
-	GetDlgItem(IDC_STATIC_DRAW)->ScreenToClient(&point);
-	if (ROIRect == NULL)
+	// TODO: Add your control notification handler code here
+	iCamNum = ASIGetNumOfConnectedCameras();
+
+	((CComboBox*)GetDlgItem(IDC_COMBO_CAMERAS))->ResetContent();
+
+	int iSelectedIndex = -1, i;
+
+	ASI_CAMERA_INFO CamInfoTemp;
+	bool bDevOpened[ASICAMERA_ID_MAX] = { false };
+
+	char buf[64];
+	for (i = 0; i < iCamNum; i++)
 	{
-		ROIRect = CRect(point.x, point.y, point.x + ROIWidth, point.y + ROIHeight);
+		ASIGetCameraProperty(&CamInfoTemp, i);
+
+		if (iSelectedID == CamInfoTemp.CameraID)
+			iSelectedIndex = i;
+		if (ASIGetNumOfControls(CamInfoTemp.CameraID, &ConnectCamera[CamInfoTemp.CameraID].iCtrlNum) != ASI_ERROR_CAMERA_CLOSED)//the camera maybe have be closed, say be unplugged and plugged
+			bDevOpened[CamInfoTemp.CameraID] = true;
+		if (bDevOpened[CamInfoTemp.CameraID])
+			sprintf_s(buf, "%s(ID %d opened)", CamInfoTemp.Name, CamInfoTemp.CameraID);
+		else
+			sprintf_s(buf, "%s(ID %d closed)", CamInfoTemp.Name, CamInfoTemp.CameraID);
+		((CComboBox*)GetDlgItem(IDC_COMBO_CAMERAS))->AddString(CA2CT(buf));
+
 	}
-	else
+	for (i = 0; i < ASICAMERA_ID_MAX; i++)
 	{
-		ROIRect.MoveToX(point.x);
-		ROIRect.MoveToY(point.y);
+		if (!bDevOpened[i])
+			CloseCam(i);
 	}
-	CDialogEx::OnLButtonDown(nFlags, point);
+	if (iSelectedIndex == -1)//
+	{
+		if (iCamNum > 0)
+			iSelectedIndex = 0;
+		else
+			iSelectedIndex = -1;
+		iSelectedID = -1;
+
+	}
+
+	((CComboBox*)GetDlgItem(IDC_COMBO_CAMERAS))->SetCurSel(iSelectedIndex);
+	OnCbnSelchangeComboCameras();
 }

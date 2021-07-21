@@ -39,7 +39,6 @@ protected:
 	DECLARE_MESSAGE_MAP()
 	
 public:
-	afx_msg void OnBnClickedButtonRescan();
 
 	enum CamStatus {
 		closed = 0,
@@ -93,8 +92,8 @@ public:
 	int iROIImageWidth;
 	int iROIImageHeight;
 
-	int ROIWidth = 100;
-	int ROIHeight = 100;
+	int ROIWidth = 200;
+	int ROIHeight = 150;
 
 
 	afx_msg void OnBnClickedButtonStart();
@@ -113,7 +112,7 @@ public:
 	afx_msg void OnClose();
 	CStatic StaticDraw;
 	afx_msg void OnSize(UINT nType, int cx, int cy);
-	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
+	afx_msg void OnBnClickedButtonScan();
 };
 
 void Display(LPVOID params);
