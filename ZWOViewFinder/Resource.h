@@ -9,6 +9,7 @@
 #define IDR_MAINFRAME                   128
 #define IDC_COMBO_CAMERAS               1001
 #define IDC_BUTTON_RESCAN               1002
+#define IDC_BUTTON_SCAN                 1002
 #define IDC_BUTTON_START                1003
 #define IDC_BUTTON_STOP                 1004
 #define IDC_STATIC_DRAW                 1005
@@ -18,7 +19,6 @@
 #define IDC_STATIC_EXP                  1010
 #define IDC_STATIC_GAIN                 1011
 #define IDC_STATIC_ROI                  1012
-
 
 // Next default values for new objects
 // 

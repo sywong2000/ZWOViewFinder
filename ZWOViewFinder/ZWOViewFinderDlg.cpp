@@ -78,6 +78,7 @@ CZWOViewFinderDlg::CZWOViewFinderDlg(CWnd* pParent /*=nullptr*/)
 void CZWOViewFinderDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
+	DDX_Control(pDX, IDC_STATIC_DRAW, StaticDraw);
 }
 
 BEGIN_MESSAGE_MAP(CZWOViewFinderDlg, CDialogEx)
@@ -91,6 +92,8 @@ BEGIN_MESSAGE_MAP(CZWOViewFinderDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON_STOP, &CZWOViewFinderDlg::OnBnClickedButtonStop)
 	ON_MESSAGE(WM_MY_MSG, OnUpdateData)
 	ON_WM_CLOSE()
+	ON_WM_SIZE()
+	ON_WM_LBUTTONDOWN()
 END_MESSAGE_MAP()
 
 
@@ -421,7 +424,7 @@ void CZWOViewFinderDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBa
 
 	case IDC_SLIDER_EXPOSURE:
 		val = ACSliderCtrl->GetPos();
-		str.Format(L"%d", val);
+		str.Format(L"%d ms", val/1000);
 		((CStatic*)GetDlgItem(IDC_STATIC_EXP))->SetWindowTextW(str);
 		ASISetControlValue(iSelectedID, ASI_EXPOSURE, val * 1000, ASI_FALSE);
 		UpdateData(FALSE);
@@ -601,6 +604,8 @@ void CZWOViewFinderDlg::ReleaseImg(int iID)
 		cvReleaseImage(&ConnectCamera[iID].pTempImg);
 	if (ConnectCamera[iID].pTempImgScaled)
 		cvReleaseImage(&ConnectCamera[iID].pTempImgScaled);
+	if (ConnectCamera[iID].pROIImg)
+		cvReleaseImage(&ConnectCamera[iID].pROIImg);
 }
 
 
@@ -675,6 +680,10 @@ void Display(LPVOID params)
 	char name[64], temp[64];
 	char name_roi[64];
 
+	int nCurrentFullImageWidth = -1, nCurrentFullImageHeight = -1, nCurrentROIImageWidth = -1, nCurrentROIImageHeight = -1;
+	float nScale = 0.0;
+
+
 	if (dlg->ConnectCamera[iCamIDInThread].Status == dlg->snaping)
 		sprintf_s(name, "snap");
 	else if (dlg->ConnectCamera[iCamIDInThread].Status == dlg->capturing)
@@ -699,12 +708,11 @@ void Display(LPVOID params)
 	::SetParent(hWnd_roi, dlg->GetDlgItem(IDC_STATIC_ROI)->m_hWnd);
 	::ShowWindow(hParent_roi, SW_HIDE);
 
-
 	Dlg_Thread dlgindex;
 	dlgindex.pDlg = dlg;
 	dlgindex.ID = iCamIDInThread;
 
-	cvSetMouseCallback(name, onMouse, (void*)&dlgindex);
+	//cvSetMouseCallback(name, onMouse, (void*)&dlgindex);
 
 	//	RECT rectCenter;
 	int x, y, centerX, centerY;
@@ -717,8 +725,6 @@ void Display(LPVOID params)
 
 		if (dlg->ConnectCamera[iCamIDInThread].bNewImg)
 		{
-
-
 			//if (iCamIDInThread == dlg->iSelectedID && dlg->bDrawRect)
 			//{
 			//	cvPt0 = cvPoint(dlg->pt0.x, dlg->pt0.y);
@@ -736,72 +742,126 @@ void Display(LPVOID params)
 			//	cvLine(dlg->ConnectCamera[iCamIDInThread].pTempImg, cvPt0, cvPt1, color, 1);
 			//}
 		}
-		if (dlg->fScale < 1)
+
+		if (!dlg->ConnectCamera[iCamIDInThread].pTempImgScaled || dlg->ConnectCamera[iCamIDInThread].bNewImg)
 		{
+			dlg->ConnectCamera[iCamIDInThread].bNewImg = false;
+			//int WidthScaled, HeightScaled;
+			//WidthScaled = dlg->ConnectCamera[iCamIDInThread].width * dlg->fScale;
+			//HeightScaled = dlg->ConnectCamera[iCamIDInThread].height * dlg->fScale;
+			//dlg->ConnectCamera[iCamIDInThread].fOldScale = dlg->fScale;
 
-			if (!dlg->ConnectCamera[iCamIDInThread].pTempImgScaled
-				|| dlg->ConnectCamera[iCamIDInThread].fOldScale != dlg->fScale
-				|| dlg->ConnectCamera[iCamIDInThread].bNewImg)
+			
+			//cv::Mat img_raw(Frame::HEIGHT, Frame::WIDTH, CV_8UC1, (void*)(frame->frame_buffer_));
+			//cvtColor(img_raw, img_preview, cv::COLOR_BayerBG2BGR);
+
+			if (dlg->ROIRect == NULL)
 			{
-				dlg->ConnectCamera[iCamIDInThread].bNewImg = false;
-				int WidthScaled, HeightScaled;
-				WidthScaled = dlg->ConnectCamera[iCamIDInThread].width * dlg->fScale;
-				HeightScaled = dlg->ConnectCamera[iCamIDInThread].height * dlg->fScale;
+				dlg->ROIRect = CRect(10, 10, 10+dlg->ROIWidth, 10 + dlg->ROIHeight);
+			}
 
-				dlg->ConnectCamera[iCamIDInThread].fOldScale = dlg->fScale;
-
+			if (dlg->iFullImageHeight!=nCurrentFullImageHeight || dlg->iFullImageWidth != nCurrentFullImageWidth)
+			{ 
+				// size changed, create a new image again
 				cvReleaseImage(&dlg->ConnectCamera[iCamIDInThread].pTempImgScaled);
-				//cv::Mat img_raw(Frame::HEIGHT, Frame::WIDTH, CV_8UC1, (void*)(frame->frame_buffer_));
-				//cvtColor(img_raw, img_preview, cv::COLOR_BayerBG2BGR);
-
-				dlg->ConnectCamera[iCamIDInThread].pTempImgScaled = cvCreateImage(cvSize(WidthScaled, HeightScaled), dlg->ConnectCamera[iCamIDInThread].pTempImg->depth, dlg->ConnectCamera[iCamIDInThread].pTempImg->nChannels);
-
-				cvResize(dlg->ConnectCamera[iCamIDInThread].pTempImg, dlg->ConnectCamera[iCamIDInThread].pTempImgScaled, CV_INTER_AREA);
-				cvSetImageROI(dlg->ConnectCamera[iCamIDInThread].pRgb, cvRect(0, 0, WidthScaled, HeightScaled));
-				cvCopy(dlg->ConnectCamera[iCamIDInThread].pTempImgScaled, dlg->ConnectCamera[iCamIDInThread].pRgb);
-
-				cvShowImage(name, dlg->ConnectCamera[iCamIDInThread].pRgb);
-				//cvSaveImage("E:\\aaTest.jpg", dlg->ConnectCamera[iCamIDInThread].pRgb);//If it works, This operation will save a jpg.
+				dlg->ConnectCamera[iCamIDInThread].pTempImgScaled = cvCreateImage(cvSize(dlg->iFullImageWidth, dlg->iFullImageHeight), dlg->ConnectCamera[iCamIDInThread].pTempImg->depth, dlg->ConnectCamera[iCamIDInThread].pTempImg->nChannels);
+				nCurrentFullImageHeight = dlg->iFullImageHeight;
+				nCurrentFullImageWidth = dlg->iFullImageWidth;
+				nScale = (float)nCurrentFullImageHeight / (float)dlg->ConnectCamera[iCamIDInThread].pTempImg->width;
+				
 			}
-		}
-		else
-		{
+			cvResize(dlg->ConnectCamera[iCamIDInThread].pTempImg, dlg->ConnectCamera[iCamIDInThread].pTempImgScaled, CV_INTER_AREA);
 
-			if (dlg->ConnectCamera[iCamIDInThread].bNewImg || dlg->ConnectCamera[iCamIDInThread].fOldScale != dlg->fScale)
+			// draw the ROI rectangle
+			cvRectangle(dlg->ConnectCamera[iCamIDInThread].pTempImgScaled, cvPoint(dlg->ROIRect.TopLeft().x * nScale, dlg->ROIRect.TopLeft().y * nScale), cvPoint(dlg->ROIRect.BottomRight().x * nScale, dlg->ROIRect.BottomRight().y * nScale), cvScalar(0, 255, 0, 0), 2);
+			cvShowImage(name, dlg->ConnectCamera[iCamIDInThread].pTempImgScaled);
+			
+			cvSetImageROI(dlg->ConnectCamera[iCamIDInThread].pTempImg, cvRect(dlg->ROIRect.TopLeft().x, dlg->ROIRect.TopLeft().y, dlg->ROIRect.Width(), dlg->ROIRect.Height()));
+
+			if (dlg->iROIImageHeight != nCurrentROIImageHeight || dlg->iROIImageWidth != nCurrentROIImageWidth)
 			{
-				dlg->ConnectCamera[iCamIDInThread].fOldScale = dlg->fScale;
-				//cvResetImageROI(dlg->ConnectCamera[iCamIDInThread].pRgb);
-				// need to find a way not to release the image and use the same memory area again
-				cvReleaseImage(&dlg->ConnectCamera[iCamIDInThread].pRgb);
-
-				//memcpy((BYTE*)(dlg->ConnectCamera[iCamIDInThread].pRgb->imageData), (BYTE*)(dlg->ConnectCamera[iCamIDInThread].pTempImg->imageData),dlg->ConnectCamera[iCamIDInThread].pTempImg->width * dlg->ConnectCamera[iCamIDInThread].pTempImg->height * dlg->ConnectCamera[iCamIDInThread].pTempImg->depth * dlg->ConnectCamera[iCamIDInThread].pTempImg->nChannels / 8);
-
-				dlg->ConnectCamera[iCamIDInThread].pRgb = cvCreateImage(cvSize(dlg->ConnectCamera[iCamIDInThread].width, dlg->ConnectCamera[iCamIDInThread].height), 8,3);
-				cvCvtColor(dlg->ConnectCamera[iCamIDInThread].pTempImg, dlg->ConnectCamera[iCamIDInThread].pRgb, CV_BayerBG2BGR);
-				dlg->ConnectCamera[iCamIDInThread].bNewImg = false;
-				cvRectangle(dlg->ConnectCamera[iCamIDInThread].pRgb, cvPoint(50,50), cvPoint(200, 200), cvScalar(0, 255, 0, 0), 2);
-
-				cvShowImage(name, dlg->ConnectCamera[iCamIDInThread].pRgb);
-				//cvShowImage(name, pDebayeredImg);
-
-				// ROI
-				CvRect rect = cvRect(50, 50, 200, 200);
-				cvSetImageROI(dlg->ConnectCamera[iCamIDInThread].pRgb, rect);
-				// 300%
-				IplImage* tmp = cvCreateImage(cvSize(dlg->ConnectCamera[iCamIDInThread].pRgb->roi->width*3, dlg->ConnectCamera[iCamIDInThread].pRgb->roi->height * 3), dlg->ConnectCamera[iCamIDInThread].pRgb->depth, dlg->ConnectCamera[iCamIDInThread].pRgb->nChannels);
-				cvResize(dlg->ConnectCamera[iCamIDInThread].pRgb, tmp, CV_INTER_AREA);
-				cvShowImage(name_roi, tmp);
-				
-				cvResetImageROI(dlg->ConnectCamera[iCamIDInThread].pRgb);
-				
+				// size changed, create a new image again
+				cvReleaseImage(&dlg->ConnectCamera[iCamIDInThread].pROIImg);
+				dlg->ConnectCamera[iCamIDInThread].pROIImg = cvCreateImage(cvSize(dlg->iROIImageWidth, dlg->iROIImageHeight), dlg->ConnectCamera[iCamIDInThread].pTempImg->depth, dlg->ConnectCamera[iCamIDInThread].pTempImg->nChannels);
+				nCurrentROIImageHeight = dlg->iROIImageHeight;
+				nCurrentROIImageWidth = dlg->iROIImageWidth;
 			}
+			cvResize(dlg->ConnectCamera[iCamIDInThread].pTempImg, dlg->ConnectCamera[iCamIDInThread].pROIImg, CV_INTER_AREA);
+			cvShowImage(name_roi, dlg->ConnectCamera[iCamIDInThread].pROIImg);
+			cvResetImageROI(dlg->ConnectCamera[iCamIDInThread].pTempImg);
+
+			//cvSetImageROI(dlg->ConnectCamera[iCamIDInThread].pRgb, cvRect(0, 0, WidthScaled, HeightScaled));
+			//cvCopy(dlg->ConnectCamera[iCamIDInThread].pTempImgScaled, dlg->ConnectCamera[iCamIDInThread].pRgb);
+			//cvSaveImage("E:\\aaTest.jpg", dlg->ConnectCamera[iCamIDInThread].pRgb);//If it works, This operation will save a jpg.
 		}
+
+
+
+		//if (dlg->fScale < 1)
+		//{
+
+		//	if (!dlg->ConnectCamera[iCamIDInThread].pTempImgScaled || dlg->ConnectCamera[iCamIDInThread].fOldScale != dlg->fScale || dlg->ConnectCamera[iCamIDInThread].bNewImg)
+		//	{
+		//		dlg->ConnectCamera[iCamIDInThread].bNewImg = false;
+		//		int WidthScaled, HeightScaled;
+		//		WidthScaled = dlg->ConnectCamera[iCamIDInThread].width * dlg->fScale;
+		//		HeightScaled = dlg->ConnectCamera[iCamIDInThread].height * dlg->fScale;
+
+		//		dlg->ConnectCamera[iCamIDInThread].fOldScale = dlg->fScale;
+
+		//		cvReleaseImage(&dlg->ConnectCamera[iCamIDInThread].pTempImgScaled);
+		//		//cv::Mat img_raw(Frame::HEIGHT, Frame::WIDTH, CV_8UC1, (void*)(frame->frame_buffer_));
+		//		//cvtColor(img_raw, img_preview, cv::COLOR_BayerBG2BGR);
+
+		//		dlg->ConnectCamera[iCamIDInThread].pTempImgScaled = cvCreateImage(cvSize(WidthScaled, HeightScaled), dlg->ConnectCamera[iCamIDInThread].pTempImg->depth, dlg->ConnectCamera[iCamIDInThread].pTempImg->nChannels);
+
+		//		cvResize(dlg->ConnectCamera[iCamIDInThread].pTempImg, dlg->ConnectCamera[iCamIDInThread].pTempImgScaled, CV_INTER_AREA);
+		//		cvSetImageROI(dlg->ConnectCamera[iCamIDInThread].pRgb, cvRect(0, 0, WidthScaled, HeightScaled));
+		//		cvCopy(dlg->ConnectCamera[iCamIDInThread].pTempImgScaled, dlg->ConnectCamera[iCamIDInThread].pRgb);
+
+		//		cvShowImage(name, dlg->ConnectCamera[iCamIDInThread].pRgb);
+		//		//cvSaveImage("E:\\aaTest.jpg", dlg->ConnectCamera[iCamIDInThread].pRgb);//If it works, This operation will save a jpg.
+		//	}
+		//}
+		//else
+		//{
+
+		//	if (dlg->ConnectCamera[iCamIDInThread].bNewImg || dlg->ConnectCamera[iCamIDInThread].fOldScale != dlg->fScale)
+		//	{
+		//		dlg->ConnectCamera[iCamIDInThread].fOldScale = dlg->fScale;
+		//		//cvResetImageROI(dlg->ConnectCamera[iCamIDInThread].pRgb);
+		//		// need to find a way not to release the image and use the same memory area again
+		//		cvReleaseImage(&dlg->ConnectCamera[iCamIDInThread].pRgb);
+
+		//		//memcpy((BYTE*)(dlg->ConnectCamera[iCamIDInThread].pRgb->imageData), (BYTE*)(dlg->ConnectCamera[iCamIDInThread].pTempImg->imageData),dlg->ConnectCamera[iCamIDInThread].pTempImg->width * dlg->ConnectCamera[iCamIDInThread].pTempImg->height * dlg->ConnectCamera[iCamIDInThread].pTempImg->depth * dlg->ConnectCamera[iCamIDInThread].pTempImg->nChannels / 8);
+
+		//		dlg->ConnectCamera[iCamIDInThread].pRgb = cvCreateImage(cvSize(dlg->ConnectCamera[iCamIDInThread].width, dlg->ConnectCamera[iCamIDInThread].height), 8,3);
+		//		cvCvtColor(dlg->ConnectCamera[iCamIDInThread].pTempImg, dlg->ConnectCamera[iCamIDInThread].pRgb, CV_BayerBG2BGR);
+		//		dlg->ConnectCamera[iCamIDInThread].bNewImg = false;
+		//		cvRectangle(dlg->ConnectCamera[iCamIDInThread].pRgb, cvPoint(50,50), cvPoint(200, 200), cvScalar(0, 255, 0, 0), 2);
+
+		//		cvShowImage(name, dlg->ConnectCamera[iCamIDInThread].pRgb);
+		//		//cvShowImage(name, pDebayeredImg);
+
+		//		// ROI
+		//		CvRect rect = cvRect(50, 50, 200, 200);
+		//		cvSetImageROI(dlg->ConnectCamera[iCamIDInThread].pRgb, rect);
+		//		// 300%
+		//		IplImage* tmp = cvCreateImage(cvSize(dlg->ConnectCamera[iCamIDInThread].pRgb->roi->width*3, dlg->ConnectCamera[iCamIDInThread].pRgb->roi->height * 3), dlg->ConnectCamera[iCamIDInThread].pRgb->depth, dlg->ConnectCamera[iCamIDInThread].pRgb->nChannels);
+		//		cvResize(dlg->ConnectCamera[iCamIDInThread].pRgb, tmp, CV_INTER_AREA);
+		//		cvShowImage(name_roi, tmp);
+		//		
+		//		cvResetImageROI(dlg->ConnectCamera[iCamIDInThread].pRgb);
+		//		
+		//	}
+		//}
 
 		//	cvText(dlg->ConnectCamera[iCamIDInThread].pRgb, buf, iTextX, iTextY);
 		//	cvShowImage(WindowName, dlg->ConnectCamera[iCamIDInThread].pRgb);
 		cvWaitKey(1);
 	}
 	cvDestroyWindow(name);
+	cvDestroyWindow(name_roi);
 	_endthread();
 
 }
@@ -1039,4 +1099,45 @@ void CZWOViewFinderDlg::OnClose()
 		CloseCam(i);
 
 	CDialogEx::OnClose();
+}
+
+
+void CZWOViewFinderDlg::OnSize(UINT nType, int cx, int cy)
+{
+		CRect rect;
+
+		if (GetDlgItem(IDC_STATIC_DRAW)!=NULL)
+		{ 
+			GetDlgItem(IDC_STATIC_DRAW)->GetWindowRect(rect);
+			iFullImageWidth = rect.Width();
+			iFullImageHeight = rect.Height();
+		}
+
+		if (GetDlgItem(IDC_STATIC_ROI) != NULL)
+		{
+			GetDlgItem(IDC_STATIC_ROI)->GetWindowRect(rect);
+			iROIImageWidth = rect.Width();
+			iROIImageHeight = rect.Height();
+		}
+
+	CDialogEx::OnSize(nType, cx, cy);
+
+	// TODO: Add your message handler code here
+}
+
+
+void CZWOViewFinderDlg::OnLButtonDown(UINT nFlags, CPoint point)
+{
+	// TODO: Add your message handler code here and/or call default
+	GetDlgItem(IDC_STATIC_DRAW)->ScreenToClient(&point);
+	if (ROIRect == NULL)
+	{
+		ROIRect = CRect(point.x, point.y, point.x + ROIWidth, point.y + ROIHeight);
+	}
+	else
+	{
+		ROIRect.MoveToX(point.x);
+		ROIRect.MoveToY(point.y);
+	}
+	CDialogEx::OnLButtonDown(nFlags, point);
 }

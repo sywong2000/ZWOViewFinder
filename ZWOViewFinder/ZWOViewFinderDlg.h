@@ -48,7 +48,8 @@ public:
 		snaping
 	};
 
-	struct ConnectedCam {
+	struct ConnectedCam 
+	{
 		HANDLE Thr_Display, Thr_Snap, Thr_CapVideo;
 		CamStatus Status;
 		int iCtrlNum;
@@ -60,6 +61,7 @@ public:
 		IplImage* pRgb;
 		IplImage* pTempImg;
 		IplImage* pTempImgScaled;
+		IplImage* pROIImg;
 		int iSnapTime;
 		ASI_IMG_TYPE ImageType;
 		int width, height;
@@ -83,6 +85,16 @@ public:
 	CString m_static_msg;
 	int m_CamMode;
 
+	int iFullImageWidth;
+	int iFullImageHeight;
+
+	CRect ROIRect;
+
+	int iROIImageWidth;
+	int iROIImageHeight;
+
+	int ROIWidth = 100;
+	int ROIHeight = 100;
 
 
 	afx_msg void OnBnClickedButtonStart();
@@ -99,6 +111,9 @@ public:
 	void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
 	LRESULT OnUpdateData(WPARAM wParam, LPARAM lParam);
 	afx_msg void OnClose();
+	CStatic StaticDraw;
+	afx_msg void OnSize(UINT nType, int cx, int cy);
+	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
 };
 
 void Display(LPVOID params);
