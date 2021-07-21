@@ -1,6 +1,7 @@
 
 // ZWOViewFinderDlg.cpp : implementation file
 //
+
 #include "pch.h"
 #include "framework.h"
 #include "ZWOViewFinder.h"
@@ -13,6 +14,10 @@
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
+#define _CRTDBG_MAP_ALLOC
+#define _CRTDBG_MAP_ALLOC_NEW
+#include <crtdbg.h>
+#include <assert.h>
 #endif
 #include "include/ASICamera2.h"
 
@@ -66,6 +71,8 @@ CZWOViewFinderDlg::CZWOViewFinderDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_ZWOVIEWFINDER_DIALOG, pParent)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+	_crtBreakAlloc = 161;
+	_CrtDumpMemoryLeaks();
 }
 
 void CZWOViewFinderDlg::DoDataExchange(CDataExchange* pDX)
@@ -83,6 +90,7 @@ BEGIN_MESSAGE_MAP(CZWOViewFinderDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON_OPEN, &CZWOViewFinderDlg::OnBnClickedButtonOpen)
 	ON_BN_CLICKED(IDC_BUTTON_STOP, &CZWOViewFinderDlg::OnBnClickedButtonStop)
 	ON_MESSAGE(WM_MY_MSG, OnUpdateData)
+	ON_WM_CLOSE()
 END_MESSAGE_MAP()
 
 
@@ -91,6 +99,7 @@ END_MESSAGE_MAP()
 
 BOOL CZWOViewFinderDlg::OnInitDialog()
 {
+
 	CDialogEx::OnInitDialog();
 
 	// Add "About..." menu item to system menu.
@@ -156,18 +165,6 @@ LRESULT CZWOViewFinderDlg::OnUpdateData(WPARAM wParam, LPARAM lParam)
 	}
 
 	return 0;
-}
-
-
-void CZWOViewFinderDlg::ScanConnectedCameras()
-{
-	int nNumOfConnectedCameras = ASIGetNumOfConnectedCameras();
-	for (int i = 0;i < nNumOfConnectedCameras;i++)
-	{
-		ASI_CAMERA_INFO info;
-		ASIGetCameraProperty(&info, i);
-	}
-
 }
 
 
@@ -676,10 +673,15 @@ void Display(LPVOID params)
 	char buf[128] = { 0 };
 
 	char name[64], temp[64];
+	char name_roi[64];
+
 	if (dlg->ConnectCamera[iCamIDInThread].Status == dlg->snaping)
 		sprintf_s(name, "snap");
 	else if (dlg->ConnectCamera[iCamIDInThread].Status == dlg->capturing)
+	{
+		sprintf_s(name_roi, "video_roi");
 		sprintf_s(name, "video");
+	}
 	strcat_s(name, dlg->ConnectCamera[iCamIDInThread].pASICameraInfo->Name);
 	sprintf_s(temp, " ID%d", iCamIDInThread);
 	strcat_s(name, temp);
@@ -689,6 +691,13 @@ void Display(LPVOID params)
 	HWND hParent = GetParent(hWnd);
 	::SetParent(hWnd, dlg->GetDlgItem(IDC_STATIC_DRAW)->m_hWnd);
 	::ShowWindow(hParent, SW_HIDE);
+
+
+	cvNamedWindow(name_roi, 1);
+	HWND hWnd_roi = (HWND)cvGetWindowHandle(name_roi);
+	HWND hParent_roi = GetParent(hWnd_roi);
+	::SetParent(hWnd_roi, dlg->GetDlgItem(IDC_STATIC_ROI)->m_hWnd);
+	::ShowWindow(hParent_roi, SW_HIDE);
 
 
 	Dlg_Thread dlgindex;
@@ -740,6 +749,7 @@ void Display(LPVOID params)
 				HeightScaled = dlg->ConnectCamera[iCamIDInThread].height * dlg->fScale;
 
 				dlg->ConnectCamera[iCamIDInThread].fOldScale = dlg->fScale;
+
 				cvReleaseImage(&dlg->ConnectCamera[iCamIDInThread].pTempImgScaled);
 				//cv::Mat img_raw(Frame::HEIGHT, Frame::WIDTH, CV_8UC1, (void*)(frame->frame_buffer_));
 				//cvtColor(img_raw, img_preview, cv::COLOR_BayerBG2BGR);
@@ -763,15 +773,26 @@ void Display(LPVOID params)
 				//cvResetImageROI(dlg->ConnectCamera[iCamIDInThread].pRgb);
 				// need to find a way not to release the image and use the same memory area again
 				cvReleaseImage(&dlg->ConnectCamera[iCamIDInThread].pRgb);
+
 				//memcpy((BYTE*)(dlg->ConnectCamera[iCamIDInThread].pRgb->imageData), (BYTE*)(dlg->ConnectCamera[iCamIDInThread].pTempImg->imageData),dlg->ConnectCamera[iCamIDInThread].pTempImg->width * dlg->ConnectCamera[iCamIDInThread].pTempImg->height * dlg->ConnectCamera[iCamIDInThread].pTempImg->depth * dlg->ConnectCamera[iCamIDInThread].pTempImg->nChannels / 8);
 
 				dlg->ConnectCamera[iCamIDInThread].pRgb = cvCreateImage(cvSize(dlg->ConnectCamera[iCamIDInThread].width, dlg->ConnectCamera[iCamIDInThread].height), 8,3);
 				cvCvtColor(dlg->ConnectCamera[iCamIDInThread].pTempImg, dlg->ConnectCamera[iCamIDInThread].pRgb, CV_BayerBG2BGR);
-
 				dlg->ConnectCamera[iCamIDInThread].bNewImg = false;
+				cvRectangle(dlg->ConnectCamera[iCamIDInThread].pRgb, cvPoint(50,50), cvPoint(200, 200), cvScalar(0, 255, 0, 0), 2);
 
 				cvShowImage(name, dlg->ConnectCamera[iCamIDInThread].pRgb);
 				//cvShowImage(name, pDebayeredImg);
+
+				// ROI
+				CvRect rect = cvRect(50, 50, 200, 200);
+				cvSetImageROI(dlg->ConnectCamera[iCamIDInThread].pRgb, rect);
+				// 300%
+				IplImage* tmp = cvCreateImage(cvSize(dlg->ConnectCamera[iCamIDInThread].pRgb->roi->width*3, dlg->ConnectCamera[iCamIDInThread].pRgb->roi->height * 3), dlg->ConnectCamera[iCamIDInThread].pRgb->depth, dlg->ConnectCamera[iCamIDInThread].pRgb->nChannels);
+				cvResize(dlg->ConnectCamera[iCamIDInThread].pRgb, tmp, CV_INTER_AREA);
+				cvShowImage(name_roi, tmp);
+				
+				cvResetImageROI(dlg->ConnectCamera[iCamIDInThread].pRgb);
 				
 			}
 		}
@@ -1009,3 +1030,13 @@ void CZWOViewFinderDlg::OnBnClickedButtonStop()
 }
 
 
+
+
+void CZWOViewFinderDlg::OnClose()
+{
+	// TODO: Add your message handler code here and/or call default
+	for (int i = 0; i < sizeof(ConnectCamera) / sizeof(ConnectedCam); i++)
+		CloseCam(i);
+
+	CDialogEx::OnClose();
+}

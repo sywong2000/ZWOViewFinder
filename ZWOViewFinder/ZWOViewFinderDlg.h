@@ -34,15 +34,12 @@ protected:
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
-	afx_msg void StartPreview();
-	afx_msg void ScanConnectedCameras();
 	char* cam_name = nullptr;
 	int binning = 1;
 	DECLARE_MESSAGE_MAP()
 	
 public:
 	afx_msg void OnBnClickedButtonRescan();
-	afx_msg void OnBnClickedButton1();
 
 	enum CamStatus {
 		closed = 0,
@@ -82,6 +79,7 @@ public:
 	int iCamNum;
 	ConnectedCam ConnectCamera[ASICAMERA_ID_MAX];
 	float fScale = 1;
+	bool bDebayer = true;
 	CString m_static_msg;
 	int m_CamMode;
 
@@ -100,6 +98,7 @@ public:
 	afx_msg void OnTRBNThumbPosChangingSliderExposure(NMHDR* pNMHDR, LRESULT* pResult);
 	void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
 	LRESULT OnUpdateData(WPARAM wParam, LPARAM lParam);
+	afx_msg void OnClose();
 };
 
 void Display(LPVOID params);

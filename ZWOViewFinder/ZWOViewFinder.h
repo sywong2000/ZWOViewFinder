@@ -9,8 +9,6 @@
 #endif
 
 #include "resource.h"		// main symbols
-
-
 // CZWOViewFinderApp:
 // See ZWOViewFinder.cpp for the implementation of this class
 //
