@@ -450,6 +450,13 @@ void CZWOViewFinderDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBa
 		ASISetControlValue(iSelectedID, ASI_GAIN, val, ASI_FALSE);
 		UpdateData(FALSE);
 		break;
+	case IDC_SLIDER_USB_BANDWIDTH:
+		val = ACSliderCtrl->GetPos();
+		str.Format(L"%d", val);
+		((CStatic*)GetDlgItem(IDC_STATIC_USB_BANDWIDTH))->SetWindowTextW(str);
+		ASISetControlValue(iSelectedID, ASI_BANDWIDTHOVERLOAD, val, ASI_FALSE);
+		UpdateData(FALSE);
+		break;
 	}
 
 	CDialog::OnHScroll(nSBCode, nPos, pScrollBar);
@@ -484,12 +491,12 @@ void CZWOViewFinderDlg::StopCam(int iID)
 	if (ConnectCamera[iID].Status == capturing)
 	{
 		ConnectCamera[iID].Status = opened;
-		WaitForSingleObject(ConnectCamera[iID].Thr_CapVideo, 1000);
+		WaitForSingleObject(ConnectCamera[iID].Thr_CapVideo, 3000);
 	}
 	if (ConnectCamera[iID].Status == capturing || ConnectCamera[iID].Status == snaping)
 	{
 		ConnectCamera[iID].Status = opened;
-		WaitForSingleObject(ConnectCamera[iID].Thr_Display, 1000);
+		WaitForSingleObject(ConnectCamera[iID].Thr_Display, 3000);
 		ReleaseImg(iID);
 	}
 	//if (iSelectedID == iID)
@@ -609,6 +616,7 @@ void CZWOViewFinderDlg::OnBnClickedButtonStart()
 
 		GetDlgItem(IDC_SLIDER_EXPOSURE)->EnableWindow(TRUE);
 		GetDlgItem(IDC_SLIDER_GAIN)->EnableWindow(TRUE);
+		GetDlgItem(IDC_SLIDER_USB_BANDWIDTH)->EnableWindow(TRUE);
 		GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(TRUE);
 	}
 	UpdateData(FALSE);
@@ -1057,23 +1065,31 @@ bool CZWOViewFinderDlg::ConnectSelectedCamera(int iSelectedID)
 		fROIZoomRatio = (double)ROIWidth / (double)ConnectCamera[iSelectedID].width;
 
 		// set the USB to 60
-		ASISetControlValue(iSelectedID, ASI_BANDWIDTHOVERLOAD, 60, ASI_TRUE);
+		
 		for (i = 0; i < ConnectCamera[iSelectedID].iCtrlNum; i++)
 		{
 			switch (ConnectCamera[iSelectedID].pControlCaps[i].ControlType)
 			{
 			case (ASI_GAIN):
+
 				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_GAIN))->SetRangeMin(ConnectCamera[iSelectedID].pControlCaps[i].MinValue);
 				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_GAIN))->SetRangeMax(ConnectCamera[iSelectedID].pControlCaps[i].MaxValue);
+				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_EXPOSURE))->SetPos(1);
+				ASISetControlValue(iSelectedID, ASI_GAIN, 1 , ASI_FALSE);
 				break;
 			case (ASI_EXPOSURE):
-				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_EXPOSURE))->SetRangeMin(0);
-				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_EXPOSURE))->SetRangeMax(10000);
-
-				//((CSliderCtrl*)GetDlgItem(IDC_SLIDER_EXPOSURE))->SetRangeMin(ConnectCamera[iSelectedID].pControlCaps[i].MinValue);
-				//((CSliderCtrl*)GetDlgItem(IDC_SLIDER_EXPOSURE))->SetRangeMax(ConnectCamera[iSelectedID].pControlCaps[i].MaxValue);
+				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_EXPOSURE))->SetRangeMin(ConnectCamera[iSelectedID].pControlCaps[i].MinValue);
+				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_EXPOSURE))->SetRangeMax(ConnectCamera[iSelectedID].pControlCaps[i].MaxValue/1000);
+				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_EXPOSURE))->SetPos(1);
+				ASISetControlValue(iSelectedID, ASI_EXPOSURE, 1 * 1000, ASI_FALSE);
 				break;
 
+			case (ASI_BANDWIDTHOVERLOAD):
+				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_USB_BANDWIDTH))->SetRangeMin(ConnectCamera[iSelectedID].pControlCaps[i].MinValue);
+				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_USB_BANDWIDTH))->SetRangeMax(ConnectCamera[iSelectedID].pControlCaps[i].MaxValue);
+				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_USB_BANDWIDTH))->SetPos(60);
+				ASISetControlValue(iSelectedID, ASI_BANDWIDTHOVERLOAD, 60, ASI_TRUE);
+				break;
 			}
 		}
 
@@ -1095,6 +1111,7 @@ void CZWOViewFinderDlg::OnBnClickedButtonStop()
 
 	GetDlgItem(IDC_SLIDER_EXPOSURE)->EnableWindow(FALSE);
 	GetDlgItem(IDC_SLIDER_GAIN)->EnableWindow(FALSE);
+	GetDlgItem(IDC_SLIDER_USB_BANDWIDTH)->EnableWindow(FALSE);
 	GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(FALSE);
 }
 
