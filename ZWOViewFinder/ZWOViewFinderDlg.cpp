@@ -8,6 +8,7 @@
 #include "ZWOViewFinderDlg.h"
 #include "afxdialogex.h"
 #include "resource.h"
+#include <math.h>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
@@ -86,11 +87,12 @@ BEGIN_MESSAGE_MAP(CZWOViewFinderDlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDC_BUTTON_START, &CZWOViewFinderDlg::OnBnClickedButtonStart)
 	ON_BN_CLICKED(IDC_BUTTON_STOP, &CZWOViewFinderDlg::OnBnClickedButtonStop)
+	ON_BN_CLICKED(IDC_BUTTON_SCAN, &CZWOViewFinderDlg::OnBnClickedButtonScan)
+	ON_CBN_SELCHANGE(IDC_COMBO_CAMERAS, &CZWOViewFinderDlg::OnCbnSelchangeComboCameras)
 	ON_MESSAGE(WM_MY_MSG, OnUpdateData)
 	ON_WM_CLOSE()
 	ON_WM_SIZE()
-	ON_BN_CLICKED(IDC_BUTTON_SCAN, &CZWOViewFinderDlg::OnBnClickedButtonScan)
-	ON_CBN_SELCHANGE(IDC_COMBO_CAMERAS, &CZWOViewFinderDlg::OnCbnSelchangeComboCameras)
+	ON_BN_CLICKED(IDC_BUTTON1, &CZWOViewFinderDlg::OnBnClickedButton1)
 END_MESSAGE_MAP()
 
 
@@ -438,7 +440,7 @@ void CZWOViewFinderDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBa
 
 	case IDC_SLIDER_EXPOSURE:
 		val = ACSliderCtrl->GetPos();
-		str.Format(L"%d ms", val/1000);
+		str.Format(L"%d ms", val);
 		((CStatic*)GetDlgItem(IDC_STATIC_EXP))->SetWindowTextW(str);
 		ASISetControlValue(iSelectedID, ASI_EXPOSURE, val * 1000, ASI_FALSE);
 		UpdateData(FALSE);
@@ -491,12 +493,12 @@ void CZWOViewFinderDlg::StopCam(int iID)
 	if (ConnectCamera[iID].Status == capturing)
 	{
 		ConnectCamera[iID].Status = opened;
-		WaitForSingleObject(ConnectCamera[iID].Thr_CapVideo, 3000);
+		WaitForSingleObject(ConnectCamera[iID].Thr_CapVideo, 100);
 	}
 	if (ConnectCamera[iID].Status == capturing || ConnectCamera[iID].Status == snaping)
 	{
 		ConnectCamera[iID].Status = opened;
-		WaitForSingleObject(ConnectCamera[iID].Thr_Display, 3000);
+		WaitForSingleObject(ConnectCamera[iID].Thr_Display, 100);
 		ReleaseImg(iID);
 	}
 	//if (iSelectedID == iID)
@@ -597,9 +599,10 @@ void CZWOViewFinderDlg::OnBnClickedButtonStart()
 			return;
 
 		bCameraConnected = ConnectSelectedCamera(iCamIndex);
+		OutputDebugString(L"Cam Connected\r\n");
 	}
 
-	//OnBnClickedButtonScan();
+	OnBnClickedButtonScan();
 
 
 	if (iSelectedID > -1 && iSelectedID < ASICAMERA_ID_MAX && ConnectCamera[iSelectedID].Status != closed)
@@ -618,6 +621,7 @@ void CZWOViewFinderDlg::OnBnClickedButtonStart()
 		GetDlgItem(IDC_SLIDER_GAIN)->EnableWindow(TRUE);
 		GetDlgItem(IDC_SLIDER_USB_BANDWIDTH)->EnableWindow(TRUE);
 		GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(TRUE);
+		GetDlgItem(IDC_STATIC_FULLVIEW_TEXT)->SetWindowTextW(L"Camera Active...");
 	}
 	UpdateData(FALSE);
 }
@@ -756,14 +760,14 @@ void Display(LPVOID params)
 			// draw the ROI rectangle
 			cvRectangle(dlg->ConnectCamera[iCamIDInThread].pTempImgScaled, cvPoint(dlg->ROIRect.TopLeft().x * dlg->fFullDisplayScale, dlg->ROIRect.TopLeft().y * dlg->fFullDisplayScale), cvPoint(dlg->ROIRect.BottomRight().x * dlg->fFullDisplayScale, dlg->ROIRect.BottomRight().y * dlg->fFullDisplayScale), cvScalar(255, 255, 255, 0), 1);
 			cvShowImage(name, dlg->ConnectCamera[iCamIDInThread].pTempImgScaled);
-			str.Format(L"ROI: X=%d, Y=%d, width=%d, height=%d. Zoom Level: %f", dlg->ROIRect.TopLeft().x, dlg->ROIRect.TopLeft().y, dlg->ROIRect.Width(), dlg->ROIRect.Height(), dlg->fROIZoomRatio);
+			str.Format(L"ROI: X=%d, Y=%d, width=%d, height=%d. Zoom Level: %.1fx", dlg->ROIRect.TopLeft().x, dlg->ROIRect.TopLeft().y, dlg->ROIRect.Width(), dlg->ROIRect.Height(), dlg->fROIZoomRatio);
 			((CStatic*)dlg->GetDlgItem(IDC_STATIC_ROI_TEXT))->SetWindowTextW(str);
 			cvSetImageROI(dlg->ConnectCamera[iCamIDInThread].pTempImg, cvRect(dlg->ROIRect.TopLeft().x, dlg->ROIRect.TopLeft().y, dlg->ROIRect.Width(), dlg->ROIRect.Height()));
 			if (dlg->icvROIImageHeight != nCurrentROIImageHeight || dlg->icvROIImageWidth != nCurrentROIImageWidth)
 			{
 				// size changed, create a new image again
 				cvReleaseImage(&dlg->ConnectCamera[iCamIDInThread].pROIImg);
-				dlg->ConnectCamera[iCamIDInThread].pROIImg = cvCreateImage(cvSize(dlg->icvROIImageWidth, dlg->icvROIImageHeight), dlg->ConnectCamera[iCamIDInThread].pTempImg->depth, 3);
+				dlg->ConnectCamera[iCamIDInThread].pROIImg = cvCreateImage(cvSize(dlg->icvROIImageWidth, dlg->icvROIImageHeight), dlg->ConnectCamera[iCamIDInThread].pTempImg->depth, dlg->ConnectCamera[iCamIDInThread].pTempImg->nChannels);
 				nCurrentROIImageHeight = dlg->icvROIImageHeight;
 				nCurrentROIImageWidth = dlg->icvROIImageWidth;
 			}
@@ -772,22 +776,23 @@ void Display(LPVOID params)
 			cvLine(dlg->ConnectCamera[iCamIDInThread].pROIImg, cvPoint(nCurrentROIImageWidth / 2, nCurrentROIImageHeight / 2 - 20), cvPoint(nCurrentROIImageWidth / 2, nCurrentROIImageHeight / 2 + 20), cvScalar(255, 0, 0, 0));
 			cvLine(dlg->ConnectCamera[iCamIDInThread].pROIImg, cvPoint(nCurrentROIImageWidth / 2 - 20, nCurrentROIImageHeight / 2), cvPoint(nCurrentROIImageWidth / 2 + 20, nCurrentROIImageHeight / 2), cvScalar(255, 0, 0, 0));
 
-			if (dlg->bLBDown)
-			{
-				cvLine(dlg->ConnectCamera[iCamIDInThread].pROIImg, cvPoint(dlg->pt0.x, dlg->pt0.y), cvPoint(dlg->pt1.x, dlg->pt1.y), cvScalar(0, 255, 0, 0));
-			}
+			cvLine(dlg->ConnectCamera[iCamIDInThread].pROIImg, cvPoint((nCurrentROIImageWidth / 2)-1, nCurrentROIImageHeight / 2 - 20), cvPoint((nCurrentROIImageWidth / 2)-1, nCurrentROIImageHeight / 2 + 20), cvScalar(0, 0, 0, 0));
+			cvLine(dlg->ConnectCamera[iCamIDInThread].pROIImg, cvPoint(nCurrentROIImageWidth / 2 - 20, (nCurrentROIImageHeight / 2)-1), cvPoint(nCurrentROIImageWidth / 2 + 20, (nCurrentROIImageHeight / 2)-1), cvScalar(0, 0, 0, 0));
+
+
+			//if (dlg->bLBDown)
+			//{
+			//	cvLine(dlg->ConnectCamera[iCamIDInThread].pROIImg, cvPoint(dlg->pt0.x, dlg->pt0.y), cvPoint(dlg->pt1.x, dlg->pt1.y), cvScalar(0, 255, 0, 0));
+			//}
 
 			cvShowImage(name_roi, dlg->ConnectCamera[iCamIDInThread].pROIImg);
 			cvResetImageROI(dlg->ConnectCamera[iCamIDInThread].pTempImg);
 		}
 
 		int key =  cvWaitKey(1);
-		if (key != -1)
-		{
-			CString str;
-			str.Format(L"Key pressed: %d", key);
-			OutputDebugString(str);
-		}
+		//	CString str;
+		//	str.Format(L"Key pressed: %d\r\n", key);
+		//	OutputDebugString(str);
 
 		// Left: 2424832 Up: 2490368 Right: 2555904 Down: 2621440
 		//switch (key)
@@ -915,12 +920,12 @@ void onMouseROIDisplay(int Event, int x, int y, int flags, void* param)
 				int dy = (y - dlg->pt0.y) / dlg->fROIZoomRatio;
 			
 				// only move if the actual ROI shift >= 1 pixel
-				if (dx >= 1)
+				if (dx !=0)
 				{
 					dlg->ROIRect.MoveToX(dlg->ROIRect.TopLeft().x - dx);
 					dlg->pt0.x = x;
 				}
-				if (dy >= 1)
+				if (dy !=0)
 				{
 					dlg->ROIRect.MoveToY(dlg->ROIRect.TopLeft().y - dy);
 					dlg->pt0.y = y;
@@ -1059,12 +1064,16 @@ bool CZWOViewFinderDlg::ConnectSelectedCamera(int iSelectedID)
 		memcpy(ConnectCamera[iSelectedID].pASISupportedMode, &CamSupportedModeTemp, sizeof(ASI_SUPPORTED_MODE));
 
 		// set the ROI boundary
-		ROIPosXMax = ConnectCamera[iSelectedID].width - ROIWidth;
-		ROIPosYMax = ConnectCamera[iSelectedID].height - ROIHeight;
+		ROIPosXMax = CamInfoTemp.MaxWidth - ROIWidth;
+		ROIPosYMax = CamInfoTemp.MaxHeight - ROIHeight;
 
-		fROIZoomRatio = (double)ROIWidth / (double)ConnectCamera[iSelectedID].width;
+		fROIZoomRatio = (double)CamInfoTemp.MaxWidth/ (double)ROIWidth ;
 
 		// set the USB to 60
+		long lCurVal = 0;
+		ASI_BOOL b;
+		CString str;
+		
 		
 		for (i = 0; i < ConnectCamera[iSelectedID].iCtrlNum; i++)
 		{
@@ -1074,21 +1083,30 @@ bool CZWOViewFinderDlg::ConnectSelectedCamera(int iSelectedID)
 
 				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_GAIN))->SetRangeMin(ConnectCamera[iSelectedID].pControlCaps[i].MinValue);
 				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_GAIN))->SetRangeMax(ConnectCamera[iSelectedID].pControlCaps[i].MaxValue);
-				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_EXPOSURE))->SetPos(1);
-				ASISetControlValue(iSelectedID, ASI_GAIN, 1 , ASI_FALSE);
+				ASIGetControlValue(iSelectedID, ASI_GAIN, &lCurVal, &b);
+				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_GAIN))->SetPos((int)lCurVal);
+
+				str.Format(L"%d", lCurVal);
+				GetDlgItem(IDC_STATIC_GAIN)->SetWindowTextW(str);
+
 				break;
 			case (ASI_EXPOSURE):
 				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_EXPOSURE))->SetRangeMin(ConnectCamera[iSelectedID].pControlCaps[i].MinValue);
-				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_EXPOSURE))->SetRangeMax(ConnectCamera[iSelectedID].pControlCaps[i].MaxValue/1000);
-				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_EXPOSURE))->SetPos(1);
-				ASISetControlValue(iSelectedID, ASI_EXPOSURE, 1 * 1000, ASI_FALSE);
+				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_EXPOSURE))->SetRangeMax(1500);
+				ASIGetControlValue(iSelectedID, ASI_EXPOSURE, &lCurVal, &b);
+				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_EXPOSURE))->SetPos((int)(std::clamp((int)(lCurVal/1000), (int)(ConnectCamera[iSelectedID].pControlCaps[i].MinValue),1500)));
+				str.Format(L"%d ms", lCurVal/1000);
+				GetDlgItem(IDC_STATIC_EXP)->SetWindowTextW(str);
+
 				break;
 
 			case (ASI_BANDWIDTHOVERLOAD):
 				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_USB_BANDWIDTH))->SetRangeMin(ConnectCamera[iSelectedID].pControlCaps[i].MinValue);
 				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_USB_BANDWIDTH))->SetRangeMax(ConnectCamera[iSelectedID].pControlCaps[i].MaxValue);
-				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_USB_BANDWIDTH))->SetPos(60);
-				ASISetControlValue(iSelectedID, ASI_BANDWIDTHOVERLOAD, 60, ASI_TRUE);
+				ASIGetControlValue(iSelectedID, ASI_BANDWIDTHOVERLOAD, &lCurVal, &b);
+				((CSliderCtrl*)GetDlgItem(IDC_SLIDER_USB_BANDWIDTH))->SetPos((int)lCurVal);
+				str.Format(L"%d", lCurVal);
+				GetDlgItem(IDC_STATIC_USB_BANDWIDTH)->SetWindowTextW(str);
 				break;
 			}
 		}
@@ -1113,6 +1131,8 @@ void CZWOViewFinderDlg::OnBnClickedButtonStop()
 	GetDlgItem(IDC_SLIDER_GAIN)->EnableWindow(FALSE);
 	GetDlgItem(IDC_SLIDER_USB_BANDWIDTH)->EnableWindow(FALSE);
 	GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(FALSE);
+	GetDlgItem(IDC_STATIC_FULLVIEW_TEXT)->SetWindowTextW(L"Camera Stopped...");
+
 }
 
 
@@ -1208,3 +1228,21 @@ void CZWOViewFinderDlg::OnBnClickedButtonScan()
 	OnCbnSelchangeComboCameras();
 }
 
+void CZWOViewFinderDlg::OnBnClickedButton1()
+{
+	// TODO: Add your control notification handler code here
+	if (!bTransparentDlg)
+	{ 
+		::SetWindowLong(GetSafeHwnd(), GWL_EXSTYLE, ::GetWindowLongPtr(GetSafeHwnd(), GWL_EXSTYLE) | WS_EX_LAYERED);
+		this->SetLayeredWindowAttributes(0, (255 * 70) / 100, LWA_ALPHA);
+		bTransparentDlg = true;
+	}
+	else
+	{
+		::SetWindowLong(GetSafeHwnd(), GWL_EXSTYLE, ::GetWindowLongPtr(GetSafeHwnd(), GWL_EXSTYLE) | WS_EX_LAYERED);
+		this->SetLayeredWindowAttributes(0, 255, LWA_ALPHA);
+		bTransparentDlg = false;
+	}
+
+
+}

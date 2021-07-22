@@ -83,7 +83,7 @@ public:
 	double fROIZoomRatio = 0.0;
 	bool bDebayer = true;
 	CString m_static_msg;
-	int m_CamMode;
+	int m_CamMode = 1;
 
 	int icvFullImageWidth;
 	int icvFullImageHeight;
@@ -91,11 +91,13 @@ public:
 	int icvROIImageHeight;
 
 	CRect ROIRect;
-	int ROIWidth = 200;
-	int ROIHeight = 150;
+	int ROIWidth = 100;
+	int ROIHeight = 75;
 	int ROIPosXMax= 0;
 	int ROIPosYMax = 0;
 
+
+	bool bTransparentDlg = false;
 	bool bLBDown;
 	CPoint pt0;
 	CPoint pt1;
@@ -122,6 +124,7 @@ public:
 	afx_msg void OnBnClickedButtonScan();
 	afx_msg bool ConnectSelectedCamera(int iSelectedID);
 	afx_msg void OnCbnSelchangeComboCameras();
+	afx_msg void OnBnClickedButton1();
 };
 
 void Display(LPVOID params);
