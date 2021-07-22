@@ -79,21 +79,30 @@ public:
 	int iSelectedID;
 	int iCamNum;
 	ConnectedCam ConnectCamera[ASICAMERA_ID_MAX];
-	float fScale = 1;
+	double fFullDisplayScale = 1.0;
+	double fROIZoomRatio = 0.0;
 	bool bDebayer = true;
 	CString m_static_msg;
 	int m_CamMode;
 
-	int iFullImageWidth;
-	int iFullImageHeight;
+	int icvFullImageWidth;
+	int icvFullImageHeight;
+	int icvROIImageWidth;
+	int icvROIImageHeight;
 
 	CRect ROIRect;
-
-	int iROIImageWidth;
-	int iROIImageHeight;
-
 	int ROIWidth = 200;
 	int ROIHeight = 150;
+	int ROIPosXMax= 0;
+	int ROIPosYMax = 0;
+
+	bool bLBDown;
+	CPoint pt0;
+	CPoint pt1;
+
+	bool bCameraConnected = false;
+
+	HWND hWnd_roi;
 
 
 	afx_msg void OnBnClickedButtonStart();
@@ -101,20 +110,21 @@ public:
 	void ReleaseImg(int iID);
 	void ReleaseMem(int iID);
 	void MallocMem(int iID);
-	void OnCbnSelchangeComboCameras();
 	void CloseCam(int iID);
 	void StopCam(int iID);
-	afx_msg void OnBnClickedButtonOpen();
 	afx_msg void OnBnClickedButtonStop();
-	afx_msg void OnTRBNThumbPosChangingSliderExposure(NMHDR* pNMHDR, LRESULT* pResult);
+//	afx_msg void OnTRBNThumbPosChangingSliderExposure(NMHDR* pNMHDR, LRESULT* pResult);
 	void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
 	LRESULT OnUpdateData(WPARAM wParam, LPARAM lParam);
 	afx_msg void OnClose();
 	CStatic StaticDraw;
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnBnClickedButtonScan();
+	afx_msg bool ConnectSelectedCamera(int iSelectedID);
+	afx_msg void OnCbnSelchangeComboCameras();
 };
 
 void Display(LPVOID params);
 void CaptureVideo(LPVOID params);
-void onMouse(int Event, int x, int y, int flags, void* param);
+void onMouseFullDisplay(int Event, int x, int y, int flags, void* param);
+void onMouseROIDisplay(int Event, int x, int y, int flags, void* param);
