@@ -70,8 +70,6 @@ CZWOViewFinderDlg::CZWOViewFinderDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_ZWOVIEWFINDER_DIALOG, pParent)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
-	_crtBreakAlloc = 161;
-	_CrtDumpMemoryLeaks();
 }
 
 void CZWOViewFinderDlg::DoDataExchange(CDataExchange* pDX)
@@ -599,7 +597,9 @@ void CZWOViewFinderDlg::OnBnClickedButtonStart()
 			return;
 
 		bCameraConnected = ConnectSelectedCamera(iCamIndex);
-		OutputDebugString(L"Cam Connected\r\n");
+		CString cs;
+		cs.Format(L"Cam [%d] connected.\r\n", iCamIndex);
+		OutputDebugString(cs);
 	}
 
 	OnBnClickedButtonScan();
@@ -1206,7 +1206,7 @@ void CZWOViewFinderDlg::OnBnClickedButtonScan()
 			sprintf_s(buf, "%s(ID %d opened)", CamInfoTemp.Name, CamInfoTemp.CameraID);
 		else
 			sprintf_s(buf, "%s(ID %d closed)", CamInfoTemp.Name, CamInfoTemp.CameraID);
-		((CComboBox*)GetDlgItem(IDC_COMBO_CAMERAS))->AddString(CA2CT(buf));
+		((CComboBox*)GetDlgItem(IDC_COMBO_CAMERAS))->InsertString(i,CA2CT(buf));
 
 	}
 	for (i = 0; i < ASICAMERA_ID_MAX; i++)
