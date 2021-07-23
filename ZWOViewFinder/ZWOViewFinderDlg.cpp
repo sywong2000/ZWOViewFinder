@@ -12,6 +12,7 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #define _CRTDBG_MAP_ALLOC
@@ -488,17 +489,20 @@ void CZWOViewFinderDlg::StopCam(int iID)
 	//{
 	//	AbortSnap(iID);
 	//}
+	OutputDebugString(L"StopCam()\r\n");
 	if (ConnectCamera[iID].Status == capturing)
 	{
 		ConnectCamera[iID].Status = opened;
-		WaitForSingleObject(ConnectCamera[iID].Thr_CapVideo, 100);
+		//OutputDebugString(L"Wait for thread to stop\r\n");
+		//WaitForSingleObject(ConnectCamera[iID].Thr_CapVideo, INFINITE);
+		//WaitForSingleObject(ConnectCamera[iID].Thr_Display, INFINITE);
+		//CloseHandle(ConnectCamera[iID].Thr_CapVideo);
+		//CloseHandle(ConnectCamera[iID].Thr_Display);
+		//OutputDebugString(L"After wait for objects\r\n");
+		//ReleaseImg(iID);
+		//OutputDebugString(L"releasing image\r\n");
 	}
-	if (ConnectCamera[iID].Status == capturing || ConnectCamera[iID].Status == snaping)
-	{
-		ConnectCamera[iID].Status = opened;
-		WaitForSingleObject(ConnectCamera[iID].Thr_Display, 100);
-		ReleaseImg(iID);
-	}
+	OutputDebugString(L"StopCam() done\r\n");
 	//if (iSelectedID == iID)
 	//	ChangeButtonAppearence(opened);
 }
@@ -610,8 +614,10 @@ void CZWOViewFinderDlg::OnBnClickedButtonStart()
 		ASIStartVideoCapture(iSelectedID);
 		ConnectCamera[iSelectedID].Status = capturing;
 		MallocImg(iSelectedID);
-		ConnectCamera[iSelectedID].Thr_Display = (HANDLE)_beginthread(Display, NULL, this);
-		ConnectCamera[iSelectedID].Thr_CapVideo = (HANDLE)_beginthread(CaptureVideo, NULL, this);
+
+		OutputDebugString(L"Starting Display() and CaptureVideo() threads\r\n");
+		ConnectCamera[iSelectedID].Thr_Display = (HANDLE)_beginthreadex(NULL, 0, &Display, this, 0, 0);
+		ConnectCamera[iSelectedID].Thr_CapVideo = (HANDLE)_beginthreadex(NULL, 0, &CaptureVideo, this, 0, 0);
 		
 		GetDlgItem(IDC_BUTTON_START)->EnableWindow(FALSE);
 		GetDlgItem(IDC_BUTTON_SCAN)->EnableWindow(FALSE);
@@ -670,9 +676,9 @@ void CZWOViewFinderDlg::MallocMem(int iID)
 }
 
 
-void Display(LPVOID params)
+unsigned __stdcall Display(void* pArguments)
 {
-	CZWOViewFinderDlg* dlg = (CZWOViewFinderDlg*)params;
+	CZWOViewFinderDlg* dlg = (CZWOViewFinderDlg*)pArguments;
 	int iCamIDInThread;
 	iCamIDInThread = dlg->iSelectedID;
 
@@ -693,6 +699,17 @@ void Display(LPVOID params)
 	strcat_s(name, dlg->ConnectCamera[iCamIDInThread].pASICameraInfo->Name);
 	sprintf_s(temp, " ID%d", iCamIDInThread);
 	strcat_s(name, temp);
+
+
+	try
+	{
+		cvDestroyAllWindows();
+	}
+	catch (cv::Exception& ex)
+	{
+
+	}
+	
 
 	cvNamedWindow(name);
 	HWND hWnd = (HWND)cvGetWindowHandle(name);
@@ -725,6 +742,7 @@ void Display(LPVOID params)
 
 	while (dlg->ConnectCamera[iCamIDInThread].Status == dlg->snaping || dlg->ConnectCamera[iCamIDInThread].Status == dlg->capturing)
 	{
+		OutputDebugString(L"Display() - Status is Capturing...\r\n");
 		if (!dlg->ConnectCamera[iCamIDInThread].pTempImgScaled || dlg->ConnectCamera[iCamIDInThread].bNewImg)
 		{
 			dlg->ConnectCamera[iCamIDInThread].bNewImg = false;
@@ -810,18 +828,30 @@ void Display(LPVOID params)
 		//	dlg->ROIRect.MoveToY(std::clamp((int)(dlg->ROIRect.TopLeft().y + 1), 0, dlg->ConnectCamera[dlg->iSelectedID].pTempImg->height - dlg->ROIHeight));
 		//	break;
 		//}
-	}
-	cvDestroyWindow(name);
-	cvDestroyWindow(name_roi);
-	_endthread();
 
+	}
+
+	::SetParent(hWnd_roi, hParent_roi);
+	::SetParent(hWnd, hParent);
+
+	try
+	{
+		cvDestroyAllWindows();
+	}
+	catch (cv::Exception& ex)
+	{
+
+	}
+
+	OutputDebugString(L"Display() - Exiting...\r\n");
+	return 0;
 }
 
 
 
-void CaptureVideo(LPVOID params)
+unsigned __stdcall CaptureVideo(void* pArguments)
 {
-	CZWOViewFinderDlg* dlg = (CZWOViewFinderDlg*)params;
+	CZWOViewFinderDlg* dlg = (CZWOViewFinderDlg*)pArguments;
 	int iCamIDInThread = dlg->iSelectedID;
 	int time1, time2;
 	time1 = GetTickCount();
@@ -838,6 +868,7 @@ void CaptureVideo(LPVOID params)
 	{
 		while (dlg->ConnectCamera[iCamIDInThread].Status == dlg->capturing)
 		{
+			OutputDebugString(L"CaptureVideo() - Status is Capturing...\r\n");
 			time2 = GetTickCount();
 			if (time2 - time1 > 1000)
 			{
@@ -865,6 +896,7 @@ void CaptureVideo(LPVOID params)
 	{
 		while (dlg->ConnectCamera[iCamIDInThread].Status == dlg->capturing)
 		{
+			OutputDebugString(L"CaptureVideo() - Status is Capturing...\r\n");
 			time2 = GetTickCount();
 			if (time2 - time1 > 1000)
 			{
@@ -886,14 +918,13 @@ void CaptureVideo(LPVOID params)
 			}
 		}
 	}
-	dlg->m_static_msg = "capture stop";
-	SendMessage(dlg->m_hWnd, WM_MY_MSG, WM_UPDATEUISTATE, FALSE);
-
+	OutputDebugString(L"CaptureVideo() exiting while...\r\n");
+	//dlg->m_static_msg = "capture stop";
+	//SendMessage(dlg->m_hWnd, WM_MY_MSG, WM_UPDATEUISTATE, FALSE);
 	ASIStopVideoCapture(iCamIDInThread);
-
-	_endthread();
-
-
+	OutputDebugString(L"Exiting CaptureVideo()\r\n");
+	
+	return 0;
 }
 
 
@@ -959,11 +990,24 @@ void onMouseFullDisplay(int Event, int x, int y, int flags, void* param)
 			//CString str;
 			//str.Format(L"At Point: %d, %d. (%d, %d) Scale=%f\r\n", x, y, (int)(x / dlg->fFullDisplayScale), int(y / dlg->fFullDisplayScale), dlg->fFullDisplayScale);
 			//OutputDebugString(str);
+			dlg->bLBDown = true;
 			if (dlg->ROIRect != NULL)
 			{
 				dlg->ROIRect.MoveToXY(std::clamp((int)((x / dlg->fFullDisplayScale) - (dlg->ROIWidth / 2)), 0, dlg->ROIPosXMax), std::clamp((int)((y / dlg->fFullDisplayScale) - (dlg->ROIHeight / 2)), 0, dlg->ROIPosYMax));
 			}
 		}
+		break;
+	case CV_EVENT_MOUSEMOVE:
+		if (dlg->bLBDown)
+		{
+			if (dlg->ROIRect != NULL)
+			{
+				dlg->ROIRect.MoveToXY(std::clamp((int)((x / dlg->fFullDisplayScale) - (dlg->ROIWidth / 2)), 0, dlg->ROIPosXMax), std::clamp((int)((y / dlg->fFullDisplayScale) - (dlg->ROIHeight / 2)), 0, dlg->ROIPosYMax));
+			}
+		}
+		break;
+	case CV_EVENT_LBUTTONUP:
+		dlg->bLBDown = false;
 		break;
 	}
 
@@ -1141,6 +1185,27 @@ void CZWOViewFinderDlg::OnBnClickedButtonStop()
 void CZWOViewFinderDlg::OnClose()
 {
 	// TODO: Add your message handler code here and/or call default
+	if (ConnectCamera[iSelectedID].Status==capturing)
+	{
+
+		OutputDebugString(L"Dialog closing. Trying to stop cam.\r\n");
+		StopCam(iSelectedID);
+
+		if (WaitForSingleObject(ConnectCamera[iSelectedID].Thr_CapVideo, 500) != WAIT_OBJECT_0)
+		{
+			TerminateThread(ConnectCamera[iSelectedID].Thr_CapVideo, 0);
+		}
+		if (WaitForSingleObject(ConnectCamera[iSelectedID].Thr_Display, 500) != WAIT_OBJECT_0)
+		{
+			TerminateThread(ConnectCamera[iSelectedID].Thr_Display, 0);
+		}
+		CloseHandle(ConnectCamera[iSelectedID].Thr_CapVideo);
+		CloseHandle(ConnectCamera[iSelectedID].Thr_Display);
+
+		OutputDebugString(L"Stopped.\r\n");
+
+	}
+
 	for (int i = 0; i < sizeof(ConnectCamera) / sizeof(ConnectedCam); i++)
 		CloseCam(i);
 

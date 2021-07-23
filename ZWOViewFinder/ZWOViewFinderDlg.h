@@ -91,8 +91,8 @@ public:
 	int icvROIImageHeight;
 
 	CRect ROIRect;
-	int ROIWidth = 100;
-	int ROIHeight = 75;
+	int ROIWidth = 64;
+	int ROIHeight = 40;
 	int ROIPosXMax= 0;
 	int ROIPosYMax = 0;
 
@@ -127,7 +127,7 @@ public:
 	afx_msg void OnBnClickedButton1();
 };
 
-void Display(LPVOID params);
-void CaptureVideo(LPVOID params);
+unsigned __stdcall Display(void* pArguments);
+unsigned __stdcall CaptureVideo(void* pArguments);
 void onMouseFullDisplay(int Event, int x, int y, int flags, void* param);
 void onMouseROIDisplay(int Event, int x, int y, int flags, void* param);
