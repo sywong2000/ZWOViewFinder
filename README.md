@@ -45,13 +45,13 @@ Sorry I do not have much time to tidy up the codes and put the library locations
 ## Sample Screencap
 
 Below image shows a test of the viewfinder application. Note the ROI in white rectangle (highlighted with a RED circle).
-120mm guidescope on 178mc (color)
+120mm guidescope on 178mc (color)<br>
 <img src="/Images/2021-07-24 11_34_14-Greenshot.png" width="80%" height="80%"/>
 
 <br>
 Below image shows the actual image capturing application.
 SCT ~5000mm focal length on 462mc (color)
-Please note this is just to show the alignment can be done with the magnified ROI in the viewfinder application. There's no direct relationship of the FOV between the guidescope and mainscope: i.e. the user has to align them manually.
+Please note this is just to show the alignment can be done with the magnified ROI in the viewfinder application. There's no direct relationship of the FOV between the guidescope and mainscope: i.e. the user has to align them manually.<br>
 <img src="/Images/2021-07-24 11_35_30-Greenshot.png" width="80%" height="80%"/>
 
 
