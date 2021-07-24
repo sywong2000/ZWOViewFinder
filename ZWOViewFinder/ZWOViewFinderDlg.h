@@ -84,6 +84,9 @@ public:
 	bool bDebayer = true;
 	CString m_static_msg;
 	int m_CamMode = 1;
+	bool bLockROIPosition = false;
+	bool bZoomMoving = false;
+
 
 	int icvFullImageWidth;
 	int icvFullImageHeight;
@@ -101,6 +104,7 @@ public:
 	bool bLBDown;
 	CPoint pt0;
 	CPoint pt1;
+	CPoint roi_start_moving_pt;
 	bool bPausedVideo = false;
 
 	bool bCameraConnected = false;
@@ -128,6 +132,8 @@ public:
 	afx_msg void OnBnClickedButton1();
 	afx_msg void OnCbnSelchangeComboZoomLevel();
 	afx_msg void OnBnClickedButtonPause();
+	afx_msg void OnBnClickedCheckLockpos1();
+	afx_msg void OnBnClickedCheckLockpos2();
 };
 
 unsigned __stdcall Display(void* pArguments);

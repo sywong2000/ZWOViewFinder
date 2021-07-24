@@ -94,6 +94,8 @@ BEGIN_MESSAGE_MAP(CZWOViewFinderDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON1, &CZWOViewFinderDlg::OnBnClickedButton1)
 	ON_CBN_SELCHANGE(IDC_COMBO_ZOOM_LEVEL, &CZWOViewFinderDlg::OnCbnSelchangeComboZoomLevel)
 	ON_BN_CLICKED(IDC_BUTTON_PAUSE, &CZWOViewFinderDlg::OnBnClickedButtonPause)
+	ON_BN_CLICKED(IDC_CHECK_LOCKPOS1, &CZWOViewFinderDlg::OnBnClickedCheckLockpos1)
+	ON_BN_CLICKED(IDC_CHECK_LOCKPOS2, &CZWOViewFinderDlg::OnBnClickedCheckLockpos2)
 END_MESSAGE_MAP()
 
 
@@ -632,6 +634,8 @@ void CZWOViewFinderDlg::OnBnClickedButtonStart()
 		GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(TRUE);
 		GetDlgItem(IDC_BUTTON_PAUSE)->EnableWindow(TRUE);
 		GetDlgItem(IDC_COMBO_ZOOM_LEVEL)->EnableWindow(TRUE);
+		GetDlgItem(IDC_CHECK_LOCKPOS1)->EnableWindow(TRUE);
+		GetDlgItem(IDC_CHECK_LOCKPOS2)->EnableWindow(TRUE);
 		GetDlgItem(IDC_STATIC_FULLVIEW_TEXT)->SetWindowTextW(L"Camera Active...");
 	}
 	UpdateData(FALSE);
@@ -799,6 +803,13 @@ unsigned __stdcall Display(void* pArguments)
 			cvLine(dlg->ConnectCamera[iCamIDInThread].pROIImg, cvPoint(nCurrentROIImageWidth / 2, nCurrentROIImageHeight / 2 - 20), cvPoint(nCurrentROIImageWidth / 2, nCurrentROIImageHeight / 2 + 20), cvScalar(255, 0, 0, 0));
 			cvLine(dlg->ConnectCamera[iCamIDInThread].pROIImg, cvPoint(nCurrentROIImageWidth / 2 - 20, nCurrentROIImageHeight / 2), cvPoint(nCurrentROIImageWidth / 2 + 20, nCurrentROIImageHeight / 2), cvScalar(255, 0, 0, 0));
 
+			// if Zoom moving (fine tuning) then draw a line
+			if (dlg->bZoomMoving)
+			{ 
+				cvLine(dlg->ConnectCamera[iCamIDInThread].pROIImg, cvPoint(dlg->roi_start_moving_pt.x, dlg->roi_start_moving_pt.y), cvPoint(dlg->pt1.x, dlg->pt1.y), cvScalar(255, 0, 0, 0));
+				cvLine(dlg->ConnectCamera[iCamIDInThread].pROIImg, cvPoint(dlg->roi_start_moving_pt.x+1, dlg->roi_start_moving_pt.y + 1), cvPoint(dlg->pt1.x + 1, dlg->pt1.y + 1), cvScalar(0, 0, 0, 0));
+			}
+
 			cvLine(dlg->ConnectCamera[iCamIDInThread].pROIImg, cvPoint((nCurrentROIImageWidth / 2)-1, nCurrentROIImageHeight / 2 - 20), cvPoint((nCurrentROIImageWidth / 2)-1, nCurrentROIImageHeight / 2 + 20), cvScalar(0, 0, 0, 0));
 			cvLine(dlg->ConnectCamera[iCamIDInThread].pROIImg, cvPoint(nCurrentROIImageWidth / 2 - 20, (nCurrentROIImageHeight / 2)-1), cvPoint(nCurrentROIImageWidth / 2 + 20, (nCurrentROIImageHeight / 2)-1), cvScalar(0, 0, 0, 0));
 
@@ -941,16 +952,19 @@ void onMouseROIDisplay(int Event, int x, int y, int flags, void* param)
 	switch (Event)
 	{
 	case CV_EVENT_LBUTTONDOWN:
-		if (dlg->ConnectCamera[pDlgThread->ID].Status == dlg->capturing)
+		if (dlg->ConnectCamera[pDlgThread->ID].Status == dlg->capturing && !dlg->bLockROIPosition && !dlg->bPausedVideo)
 		{
 			dlg->bLBDown = true;
 			dlg->pt0.x = x;
 			dlg->pt0.y = y;
+			dlg->roi_start_moving_pt.x = x;
+			dlg->roi_start_moving_pt.y = y;
 		}
 		break;
 	case CV_EVENT_MOUSEMOVE:
-		if (dlg->bLBDown)
+		if (dlg->bLBDown && !dlg->bLockROIPosition && !dlg->bPausedVideo)
 			{
+				dlg->bZoomMoving = true;
 				// calculate the actual ROI movement
 				int dx = (x - dlg->pt0.x) / dlg->fROIZoomRatio;
 				int dy = (y - dlg->pt0.y) / dlg->fROIZoomRatio;
@@ -972,6 +986,7 @@ void onMouseROIDisplay(int Event, int x, int y, int flags, void* param)
 			break;
 
 		case CV_EVENT_LBUTTONUP:
+			dlg->bZoomMoving = false;
 			dlg->bLBDown = false;
 			break;
 
@@ -988,7 +1003,7 @@ void onMouseFullDisplay(int Event, int x, int y, int flags, void* param)
 	switch (Event)
 	{
 	case CV_EVENT_FLAG_LBUTTON:
-		if (dlg->ConnectCamera[pDlgThread->ID].Status == dlg->capturing)
+		if (dlg->ConnectCamera[pDlgThread->ID].Status == dlg->capturing && !dlg->bLockROIPosition && !dlg->bPausedVideo)
 		{
 			//CPoint point;
 			//dlg->GetDlgItem(IDC_STATIC_DRAW)->ScreenToClient(&point);
@@ -1003,7 +1018,7 @@ void onMouseFullDisplay(int Event, int x, int y, int flags, void* param)
 		}
 		break;
 	case CV_EVENT_MOUSEMOVE:
-		if (dlg->bLBDown)
+		if (dlg->bLBDown && !dlg->bLockROIPosition && !dlg->bPausedVideo)
 		{
 			if (dlg->ROIRect != NULL)
 			{
@@ -1113,10 +1128,11 @@ bool CZWOViewFinderDlg::ConnectSelectedCamera(int iSelectedID)
 		memcpy(ConnectCamera[iSelectedID].pASISupportedMode, &CamSupportedModeTemp, sizeof(ASI_SUPPORTED_MODE));
 
 		// set the ROI boundary
+		ROIWidth = (double)CamInfoTemp.MaxWidth / (double)fROIZoomRatio;
+		ROIHeight = (double)CamInfoTemp.MaxHeight / (double)fROIZoomRatio;
 		ROIPosXMax = CamInfoTemp.MaxWidth - ROIWidth;
 		ROIPosYMax = CamInfoTemp.MaxHeight - ROIHeight;
-
-		fROIZoomRatio = (double)CamInfoTemp.MaxWidth/ (double)ROIWidth ;
+		ROIRect.SetRect(ROIRect.TopLeft().x, ROIRect.TopLeft().y, ROIRect.TopLeft().x + ROIWidth, ROIRect.TopLeft().y + ROIHeight);
 
 		// set the USB to 60
 		long lCurVal = 0;
@@ -1182,6 +1198,8 @@ void CZWOViewFinderDlg::OnBnClickedButtonStop()
 	GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(FALSE);
 	GetDlgItem(IDC_BUTTON_PAUSE)->EnableWindow(FALSE);
 	GetDlgItem(IDC_COMBO_ZOOM_LEVEL)->EnableWindow(FALSE);
+	GetDlgItem(IDC_CHECK_LOCKPOS1)->EnableWindow(FALSE);
+	GetDlgItem(IDC_CHECK_LOCKPOS2)->EnableWindow(FALSE);
 	GetDlgItem(IDC_STATIC_FULLVIEW_TEXT)->SetWindowTextW(L"Camera Stopped...");
 
 }
@@ -1364,3 +1382,35 @@ void CZWOViewFinderDlg::OnBnClickedButtonPause()
 	}
 }
 
+
+
+void CZWOViewFinderDlg::OnBnClickedCheckLockpos1()
+{
+	// TODO: Add your control notification handler code here
+	if (((CButton*)GetDlgItem(IDC_CHECK_LOCKPOS1))->GetCheck())
+	{
+		bLockROIPosition = true;
+		((CButton*)GetDlgItem(IDC_CHECK_LOCKPOS2))->SetCheck(true);
+	}
+	else
+	{
+		bLockROIPosition = false;
+		((CButton*)GetDlgItem(IDC_CHECK_LOCKPOS2))->SetCheck(false);
+	}
+}
+
+
+void CZWOViewFinderDlg::OnBnClickedCheckLockpos2()
+{
+	// TODO: Add your control notification handler code here
+	if (((CButton*)GetDlgItem(IDC_CHECK_LOCKPOS2))->GetCheck())
+	{
+		bLockROIPosition = true;
+		((CButton*)GetDlgItem(IDC_CHECK_LOCKPOS1))->SetCheck(true);
+	}
+	else
+	{
+		bLockROIPosition = false;
+		((CButton*)GetDlgItem(IDC_CHECK_LOCKPOS1))->SetCheck(false);
+	}
+}
