@@ -80,7 +80,7 @@ public:
 	int iCamNum;
 	ConnectedCam ConnectCamera[ASICAMERA_ID_MAX];
 	double fFullDisplayScale = 1.0;
-	double fROIZoomRatio = 0.0;
+	double fROIZoomRatio = 50.0;
 	bool bDebayer = true;
 	CString m_static_msg;
 	int m_CamMode = 1;
@@ -101,6 +101,7 @@ public:
 	bool bLBDown;
 	CPoint pt0;
 	CPoint pt1;
+	bool bPausedVideo = false;
 
 	bool bCameraConnected = false;
 
@@ -125,6 +126,8 @@ public:
 	afx_msg bool ConnectSelectedCamera(int iSelectedID);
 	afx_msg void OnCbnSelchangeComboCameras();
 	afx_msg void OnBnClickedButton1();
+	afx_msg void OnCbnSelchangeComboZoomLevel();
+	afx_msg void OnBnClickedButtonPause();
 };
 
 unsigned __stdcall Display(void* pArguments);

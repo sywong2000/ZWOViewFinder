@@ -92,6 +92,8 @@ BEGIN_MESSAGE_MAP(CZWOViewFinderDlg, CDialogEx)
 	ON_WM_CLOSE()
 	ON_WM_SIZE()
 	ON_BN_CLICKED(IDC_BUTTON1, &CZWOViewFinderDlg::OnBnClickedButton1)
+	ON_CBN_SELCHANGE(IDC_COMBO_ZOOM_LEVEL, &CZWOViewFinderDlg::OnCbnSelchangeComboZoomLevel)
+	ON_BN_CLICKED(IDC_BUTTON_PAUSE, &CZWOViewFinderDlg::OnBnClickedButtonPause)
 END_MESSAGE_MAP()
 
 
@@ -146,6 +148,7 @@ BOOL CZWOViewFinderDlg::OnInitDialog()
 	}
 
 	ROIRect = CRect(10, 10, 10 + ROIWidth, 10 + ROIHeight);
+	((CComboBox*)GetDlgItem(IDC_COMBO_ZOOM_LEVEL))->SetCurSel(3);
 	OnBnClickedButtonScan();
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
@@ -627,6 +630,8 @@ void CZWOViewFinderDlg::OnBnClickedButtonStart()
 		GetDlgItem(IDC_SLIDER_GAIN)->EnableWindow(TRUE);
 		GetDlgItem(IDC_SLIDER_USB_BANDWIDTH)->EnableWindow(TRUE);
 		GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(TRUE);
+		GetDlgItem(IDC_BUTTON_PAUSE)->EnableWindow(TRUE);
+		GetDlgItem(IDC_COMBO_ZOOM_LEVEL)->EnableWindow(TRUE);
 		GetDlgItem(IDC_STATIC_FULLVIEW_TEXT)->SetWindowTextW(L"Camera Active...");
 	}
 	UpdateData(FALSE);
@@ -1095,7 +1100,7 @@ bool CZWOViewFinderDlg::ConnectSelectedCamera(int iSelectedID)
 	
 	if (ASIOpenCamera(iSelectedID) == ASI_SUCCESS)
 	{
-		ASIInitCamera(iSelectedID);
+		ASI_ERROR_CODE code = ASIInitCamera(iSelectedID);
 		ConnectCamera[iSelectedID].Status = opened;
 		ConnectCamera[iSelectedID].iSnapTime = 0;
 
@@ -1175,6 +1180,8 @@ void CZWOViewFinderDlg::OnBnClickedButtonStop()
 	GetDlgItem(IDC_SLIDER_GAIN)->EnableWindow(FALSE);
 	GetDlgItem(IDC_SLIDER_USB_BANDWIDTH)->EnableWindow(FALSE);
 	GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(FALSE);
+	GetDlgItem(IDC_BUTTON_PAUSE)->EnableWindow(FALSE);
+	GetDlgItem(IDC_COMBO_ZOOM_LEVEL)->EnableWindow(FALSE);
 	GetDlgItem(IDC_STATIC_FULLVIEW_TEXT)->SetWindowTextW(L"Camera Stopped...");
 
 }
@@ -1311,3 +1318,49 @@ void CZWOViewFinderDlg::OnBnClickedButton1()
 
 
 }
+
+
+void CZWOViewFinderDlg::OnCbnSelchangeComboZoomLevel()
+{
+	// TODO: Add your control notification handler code here
+
+	if (ConnectCamera[iSelectedID].Status == capturing)
+	{
+		int n = ((CComboBox*)GetDlgItem(IDC_COMBO_ZOOM_LEVEL))->GetCurSel();
+		fROIZoomRatio = 20.0 + (n * 10);
+		CRect TargetRect;
+		TargetRect.TopLeft().x = 0;
+		TargetRect.TopLeft().y = 0;
+
+		TargetRect.BottomRight().x = (int)(ConnectCamera[iSelectedID].width / fROIZoomRatio);
+		TargetRect.BottomRight().y = (int)(ConnectCamera[iSelectedID].height / fROIZoomRatio);
+
+		TargetRect.MoveToXY(ROIRect.TopLeft().x, ROIRect.TopLeft().y);
+		ROIWidth = TargetRect.Width();
+		ROIHeight = TargetRect.Height();
+		ROIRect = TargetRect;
+		
+		
+	}
+
+}
+
+
+
+void CZWOViewFinderDlg::OnBnClickedButtonPause()
+{
+	// TODO: Add your control notification handler code here
+	if (bPausedVideo)
+	{
+		ASIStartVideoCapture(iSelectedID);
+		bPausedVideo = false;
+		GetDlgItem(IDC_BUTTON_PAUSE)->SetWindowTextW(L"Pause");
+	}
+	else
+	{
+		ASIStopVideoCapture(iSelectedID);
+		bPausedVideo = true;
+		GetDlgItem(IDC_BUTTON_PAUSE)->SetWindowTextW(L"Resume");
+	}
+}
+
