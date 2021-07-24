@@ -20,12 +20,12 @@ Yet, there's **NO MAGIC**: The user will need to align with a reference object f
 ### Guidescope
 * 120mm focal length guidescope with ASI 178 camera
 
+<img src="/Images/IMG_6238_cropped.jpg" width="50%" height="50%"/>
+
 The program works perfectly at 50x magnification of the ROI with the above setup.
 
 This is a VIsual Studio 2019 project requiring openCV 4.5.3 and ASI SDK DLL ASICamera2.dll
 Sorry I do not have much time to tidy up the codes and put the library locations in this VC project. So I hardcode the paths.
-
-
 
 ## Steps
 1. Mount the guidescope and mainscope. Connect the guiding and capturing cameras.
@@ -34,6 +34,8 @@ Sorry I do not have much time to tidy up the codes and put the library locations
 4. Once you find your target at the main scope, you can highlight the ROI of the target by holding the mouse button on the panel on the left side. Move the ROI rectangle and surround the same target. 
 5. You can fine-tune the position of the ROI at the magnified view (right side) by holding the mouse button and move along the mouse.
 6. Lock the position of the ROI. Now the ROI Rectangle is aligned with the mainscope FOV.
+
+## Sample Screencap
 
 
 
